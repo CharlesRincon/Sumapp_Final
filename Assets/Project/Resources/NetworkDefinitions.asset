@@ -1,0 +1,28 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f23f013582fcec444a69e28ac5eb5d6a, type: 3}
+  m_Name: NetworkDefinitions
+  m_EditorClassIdentifier: Assembly-CSharp::Networking.Events.NetworkEventDefinitions
+  OnPlayerJoinedEvent: {fileID: 11400000, guid: e3557c4d20134214ab09283ff6e9108a, type: 2}
+  OnPlayerLeftEvent: {fileID: 11400000, guid: f1eb2207168d1b4469fedf222e38e974, type: 2}
+  OnConnectionStatusChangedEvent: {fileID: 11400000, guid: b14e7ac2134139f44951765665c3e0e8, type: 2}
+  OnDisconnectedEvent: {fileID: 11400000, guid: 76090a8331d6e6846a9f58f000daefd1, type: 2}
+  OnGameStateChangedEvent: {fileID: 11400000, guid: 6f7b11a39866cd647bb6f4eb2035a4dc, type: 2}
+  OnEnteredLobbyEvent: {fileID: 11400000, guid: a6f49215cc4cfe64f8dd45f1b6ceb1d7, type: 2}
+  OnShutdownEvent: {fileID: 11400000, guid: 53e7b3ece01cb404caceb5d5c8d9b4c4, type: 2}
+  OnPlayerSessionCachedEvent: {fileID: 11400000, guid: 37f66eefc8e69bd43bc425007c87126a, type: 2}
+  OnPlayerOfflineEvent: {fileID: 11400000, guid: 846b422e3cd1db943852ae98ff917c8a, type: 2}
+  OnPlayerDataSpawnedEvent: {fileID: 11400000, guid: b3c146623c9d14d4f8a249aecff01b8e, type: 2}
+  OnSceneLoadStartEvent: {fileID: 11400000, guid: dab4944db6b969d458ff20b0a2b1ef19, type: 2}
+  OnSceneLoadCompleteEvent: {fileID: 11400000, guid: 4590f2ba88e1e5d43ae6db3e82c93a10, type: 2}
+  OnRoomPropertiesChangedEvent: {fileID: 11400000, guid: 6e9833042c44ca140a8ed376031e6fa5, type: 2}
+  OnPlayerKickedEvent: {fileID: 11400000, guid: eb67d038336bc924b9d9383c96e9f789, type: 2}

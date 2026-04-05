@@ -32,6 +32,20 @@ namespace Networking.Models
         [Networked]
         public int MinigameClickCount { get; set; }
 
+        /// <summary>
+        /// Network-synchronized dice roll result (1-10).
+        /// Synced across all clients automatically by Fusion.
+        /// </summary>
+        [Networked]
+        public int LastDiceRoll { get; set; }
+
+        /// <summary>
+        /// Timestamp of the last dice roll for UI display purposes.
+        /// Used to auto-hide the dice result after a certain duration.
+        /// </summary>
+        [Networked]
+        public float LastDiceRollTime { get; set; }
+
         public FusionEvent OnPlayerDataSpawnedEvent;
 
         private ChangeDetector _changeDetector;
@@ -84,6 +98,19 @@ namespace Networking.Models
             Debug.Log($"[PlayerSessionData.RPC_IncrementMinigameClickCount] Host executing for player {Object.InputAuthority.PlayerId}. Before: {MinigameClickCount}");
             MinigameClickCount++;
             Debug.Log($"[PlayerSessionData.RPC_IncrementMinigameClickCount] After: {MinigameClickCount}");
+        }
+
+        /// <summary>
+        /// RPC to roll a D10 dice (1-10).
+        /// Called by the player (InputAuthority) and executed on the host (StateAuthority).
+        /// The host generates the random result and syncs it to all clients.
+        /// </summary>
+        [Rpc(sources: RpcSources.InputAuthority, targets: RpcTargets.StateAuthority, HostMode = RpcHostMode.SourceIsHostPlayer)]
+        public void RPC_RollDice()
+        {
+            LastDiceRoll = Random.Range(1, 11);  // 1-10
+            LastDiceRollTime = (float)Runner.SimulationTime;
+            Debug.Log($"[PlayerSessionData.RPC_RollDice] Player {Object.InputAuthority.PlayerId} rolled: {LastDiceRoll}");
         }
 
         public override void Spawned()

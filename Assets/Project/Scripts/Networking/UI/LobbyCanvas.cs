@@ -35,6 +35,8 @@ namespace Networking.UI
         [SerializeField] private GameObject _gameLobbyPanel;
         [SerializeField] private TextMeshProUGUI _gameLobbyPlayerText;
         [SerializeField] private TextMeshProUGUI _gameLobbyRoomName;
+        [SerializeField] private TextMeshProUGUI _diceResultText;
+        [SerializeField] private Button _rollDiceButton;
         [SerializeField] private Button _loadGameButton;
         [SerializeField] private Button _openVuforiaButton;
         [Space]
@@ -97,6 +99,13 @@ namespace Networking.UI
             {
                 _openVuforiaButton.onClick.AddListener(OpenVuforiaPanel);
             }
+
+            // Wire roll dice button if assigned
+            if (_rollDiceButton != null)
+            {
+                _rollDiceButton.onClick.AddListener(OnRollDiceClicked);
+                _rollDiceButton.interactable = false;  // Disabled until game is ready
+            }
         }
 
         private void OnDisable()
@@ -121,6 +130,12 @@ namespace Networking.UI
             if (_openVuforiaButton != null)
             {
                 _openVuforiaButton.onClick.RemoveListener(OpenVuforiaPanel);
+            }
+
+            // Wire roll dice button if assigned
+            if (_rollDiceButton != null)
+            {
+                _rollDiceButton.onClick.RemoveListener(OnRollDiceClicked);
             }
         }
 
@@ -412,6 +427,9 @@ namespace Networking.UI
 
             if (_gameLobbyRoomName != null && runner != null)
                 _gameLobbyRoomName.text = $"Room: {runner.SessionInfo.Name}";
+
+            // Enable dice button when game lobby is ready
+            EnableDiceButton();
         }
 
         /// <summary>
@@ -631,6 +649,64 @@ namespace Networking.UI
             }
             _lobbyPlayerText.text = players;
             _lobbyRoomName.text = $"Room: {runner.SessionInfo.Name}";
+        }
+
+        /// <summary>
+        /// Called when the Roll Dice button is clicked.
+        /// Delegates to DiceUI to handle the rolling animation and networked roll.
+        /// </summary>
+        private void OnRollDiceClicked()
+        {
+            var diceUI = FindFirstObjectByType<Networking.UI.DiceUI>();
+            if (diceUI != null)
+            {
+                diceUI.StartDiceRoll();
+            }
+            else
+            {
+                Debug.LogError("[LobbyCanvas] DiceUI not found!");
+            }
+        }
+
+        /// <summary>
+        /// Enable the dice roll button.
+        /// Called when player data is spawned and network is ready.
+        /// </summary>
+        public void EnableDiceButton()
+        {
+            if (_rollDiceButton != null)
+            {
+                _rollDiceButton.interactable = true;
+                Debug.Log("[LobbyCanvas] Dice button enabled");
+            }
+        }
+
+        /// <summary>
+        /// Display the final dice result in the UI.
+        /// Called by DiceUI after animation completes.
+        /// </summary>
+        public void DisplayDiceResult(int result)
+        {
+            if (_diceResultText != null)
+            {
+                _diceResultText.text = $"<b>{result}</b>";
+                Debug.Log($"[LobbyCanvas] Displayed dice result: {result}");
+            }
+            else
+            {
+                Debug.LogWarning("[LobbyCanvas] Dice result text not assigned!");
+            }
+        }
+
+        /// <summary>
+        /// Clear the dice result from the UI.
+        /// </summary>
+        public void ClearDiceResult()
+        {
+            if (_diceResultText != null)
+            {
+                _diceResultText.text = string.Empty;
+            }
         }
     }
 }

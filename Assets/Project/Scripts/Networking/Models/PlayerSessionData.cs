@@ -64,6 +64,9 @@ namespace Networking.Models
         [Networked]
         public int BasinHealth { get; set; }
 
+        [Networked]
+        public int CurrentRound { get; set; }
+
         public FusionEvent OnPlayerDataSpawnedEvent;
 
         private ChangeDetector _changeDetector;
@@ -179,9 +182,12 @@ namespace Networking.Models
             LastDiceRollTime = (float)runner.SimulationTime;
             HasRolledThisTurn = true;
 
-            Networking.Events.NetworkEventDefinitions.Instance?.OnDiceRolledEvent?.Raise(Object.InputAuthority, runner);
-
             Debug.Log($"[PlayerSessionData] Host validated dice roll {LastDiceRoll} for player {Object.InputAuthority.PlayerId}");
+
+            // Drive turn advancement directly instead of through OnDiceRolledEvent,
+            // which is local-only and may not reach GameManager if the subscription
+            // failed during OnEnable (NetworkEventDefinitions.Instance not ready).
+            gameManager.HandleValidatedTurnRoll(Object.InputAuthority, LastDiceRoll, runner);
         }
 
         public override void Spawned()

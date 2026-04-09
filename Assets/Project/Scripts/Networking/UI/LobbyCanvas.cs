@@ -39,6 +39,7 @@ namespace Networking.UI
         [SerializeField] private Button _rollDiceButton;
         [SerializeField] private Button _loadGameButton;
         [SerializeField] private Button _openVuforiaButton;
+        [SerializeField] private TextMeshProUGUI _turnStatusText;
         [Space]
         [SerializeField] private TurnOrderPanel _turnOrderPanel;
         [Space]
@@ -160,7 +161,8 @@ namespace Networking.UI
             Debug.Log("[LobbyCanvas] Start() called.");
         }
 
-        private bool _sessionRestored = false;
+        private bool _sessionRestored;
+        private bool _diceRolling;
 
         private void Update()
         {
@@ -270,6 +272,65 @@ namespace Networking.UI
                     }
                 }
             }
+
+            // Poll turn state while game lobby is active
+            if (_gameLobbyPanel != null && _gameLobbyPanel.activeSelf && runner != null)
+            {
+                RefreshTurnUI(runner);
+            }
+        }
+
+        /// <summary>
+        /// Polls [Networked] IsActiveTurn every frame to update button and turn indicator.
+        /// FusionEvent is local-only so AdvanceTurn (host) events don't reach clients;
+        /// reading the synced property directly works on every client.
+        /// </summary>
+        private void RefreshTurnUI(NetworkRunner runner)
+        {
+            var gm = Networking.Managers.GameManager.Instance;
+            if (gm == null) return;
+
+            // Don't interfere during turn-order roll phase
+            if (gm.State == Networking.Managers.GameManager.GameState.RollOrder) return;
+
+            var localData = gm.GetPlayerData(runner.LocalPlayer, runner);
+            bool isMyTurn = localData != null && localData.IsActiveTurn;
+
+            // Clear rolling flag once our turn ends
+            if (!isMyTurn)
+                _diceRolling = false;
+
+            // Button: enabled only when it's our turn and we haven't started rolling
+            if (_rollDiceButton != null)
+                _rollDiceButton.interactable = isMyTurn && !_diceRolling;
+
+            // Turn indicator text (skip while DiceUI is animating)
+            if (_turnStatusText != null && !_diceRolling)
+            {
+                _turnStatusText.text = BuildTurnStatusText(gm, runner, isMyTurn);
+            }
+        }
+
+        private static string BuildTurnStatusText(Networking.Managers.GameManager gameManager, NetworkRunner runner, bool isMyTurn)
+        {
+            string round = gameManager.CurrentRound.ToString();
+
+            if (isMyTurn)
+            {
+                return $"<size=120%><b>Round {round}</b></size> - <color=#00FF00><b>It's your turn!</b></color> <size=95%>Roll the dice!</size>";
+            }
+
+            var activePlayer = gameManager.GetActivePlayer(runner);
+            if (activePlayer.IsRealPlayer)
+            {
+                var activeData = gameManager.GetPlayerData(activePlayer, runner);
+                string name = activeData != null ? (string)activeData.Nick : $"Player {activePlayer.PlayerId}";
+                return $"<b>Round {round}</b> - Waiting for <color=#FFFF00><b>{name}</b></color>...";
+            }
+
+            return gameManager.CurrentRound > 0
+                ? $"<b><size=110%>Round {round}</size></b>"
+                : string.Empty;
         }
 
         //Called from button
@@ -724,7 +785,12 @@ namespace Networking.UI
         /// </summary>
         private void OnRollDiceClicked()
         {
-            var diceUI = FindFirstObjectByType<Networking.UI.DiceUI>();
+            _diceRolling = true;
+
+            if (_rollDiceButton != null)
+                _rollDiceButton.interactable = false;
+
+            var diceUI = FindFirstObjectByType<DiceUI>();
             if (diceUI != null)
             {
                 diceUI.StartDiceRoll();
@@ -732,20 +798,30 @@ namespace Networking.UI
             else
             {
                 Debug.LogError("[LobbyCanvas] DiceUI not found!");
+                _diceRolling = false;
             }
         }
 
         /// <summary>
-        /// Enable the dice roll button.
+        /// Enable the dice roll button only if it is the local player's active turn.
         /// Called when player data is spawned and network is ready.
         /// </summary>
         public void EnableDiceButton()
         {
-            if (_rollDiceButton != null)
+            if (_rollDiceButton == null) return;
+
+            var runner = Networking.Services.FusionNetworkService.LocalRunner
+                         ?? FindFirstObjectByType<NetworkRunner>();
+            if (runner == null)
             {
-                _rollDiceButton.interactable = true;
-                Debug.Log("[LobbyCanvas] Dice button enabled");
+                _rollDiceButton.interactable = false;
+                return;
             }
+
+            var localData = Networking.Managers.GameManager.Instance?.GetPlayerData(runner.LocalPlayer, runner);
+            bool isMyTurn = localData != null && localData.IsActiveTurn;
+            _rollDiceButton.interactable = isMyTurn;
+            Debug.Log($"[LobbyCanvas] EnableDiceButton: isMyTurn={isMyTurn}");
         }
 
         /// <summary>

@@ -27,6 +27,20 @@ namespace Networking.Managers
         private int _currentRound;
         private bool _isTurnOrderLocked;
 
+        public int CurrentRound
+        {
+            get
+            {
+                var runner = Networking.Services.FusionNetworkService.LocalRunner;
+                if (runner != null && !runner.IsServer)
+                {
+                    var localData = GetPlayerData(runner.LocalPlayer, runner);
+                    if (localData != null) return localData.CurrentRound;
+                }
+                return _currentRound;
+            }
+        }
+
         [Header("Round Slice Config")]
         [SerializeField] private int _boardTileCount = 24;
         [SerializeField] private int _startingWater = 10;
@@ -149,6 +163,13 @@ namespace Networking.Managers
             _currentRound++;
             _roundInProgress = true;
             _activeTurnIndex = -1;
+
+            // Sync round number to all clients via [Networked] property
+            foreach (var player in runner.ActivePlayers)
+            {
+                var data = GetPlayerData(player, runner);
+                if (data != null) data.CurrentRound = _currentRound;
+            }
 
             if (!_isTurnOrderLocked)
             {
@@ -321,25 +342,25 @@ namespace Networking.Managers
 
             var tileType = _tileService.GetTileType(playerData.BoardPosition);
             int waterDelta;
-            int basinDelta;
+            // int basinDelta;
 
             if (tileType == Networking.Services.SliceTileType.Hydric)
             {
                 waterDelta = _tileService.ResolveHydricWaterDelta(_hydricWaterGain);
-                basinDelta = _tileService.ResolveHydricBasinDelta(_hydricBasinBonus);
+                // basinDelta = _tileService.ResolveHydricBasinDelta(_hydricBasinBonus);
             }
             else
             {
                 waterDelta = _tileService.ResolveCatastrophicWaterDelta(_catastrophicWaterPenalty);
-                basinDelta = _tileService.ResolveCatastrophicBasinDelta(_catastrophicBasinPenalty);
+                // basinDelta = _tileService.ResolveCatastrophicBasinDelta(_catastrophicBasinPenalty);
             }
 
             playerData.WaterAmount = Mathf.Max(0, playerData.WaterAmount + waterDelta);
             Networking.Events.NetworkEventDefinitions.Instance?.OnPlayerWaterChangedEvent?.Raise(playerData.Object.InputAuthority, runner);
 
-            _basinService.ApplyDelta(basinDelta);
-            SyncBasinHealthToAllPlayers(runner);
-            Networking.Events.NetworkEventDefinitions.Instance?.OnBasinStateChangedEvent?.Raise(playerData.Object.InputAuthority, runner);
+            // _basinService.ApplyDelta(basinDelta);
+            // SyncBasinHealthToAllPlayers(runner);
+            // Networking.Events.NetworkEventDefinitions.Instance?.OnBasinStateChangedEvent?.Raise(playerData.Object.InputAuthority, runner);
 
             if (_basinService.IsDefeated)
             {

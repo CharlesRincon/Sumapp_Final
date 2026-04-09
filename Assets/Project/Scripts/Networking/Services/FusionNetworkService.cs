@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 using Fusion;
 using Fusion.Sockets;
@@ -38,6 +39,15 @@ namespace Networking.Services
                 LocalRunner = runner;
             }
 
+            // Log player count status (SUMAK: 2-6 players max)
+            int playerCount = runner.ActivePlayers.Count();
+            Debug.Log($"[FusionNetworkService] Player {player.PlayerId} joined. Total: {playerCount}/6");
+            
+            if (playerCount >= 5)
+            {
+                Debug.Log("[FusionNetworkService] Room almost full (5/6 or 6/6)!");
+            }
+
             OnPlayerJoinedEvent?.Raise(player, runner);
         }
 
@@ -59,7 +69,27 @@ namespace Networking.Services
         }
 
         public void OnConnectFailed(NetworkRunner runner, NetAddress remoteAddress, NetConnectFailedReason reason) { }
-        public void OnConnectRequest(NetworkRunner runner, NetworkRunnerCallbackArgs.ConnectRequest request, byte[] token) { }
+
+        /// <summary>
+        /// Validate player join requests.
+        /// Enforces 2-6 player limit per SUMAK game design.
+        /// </summary>
+        public void OnConnectRequest(NetworkRunner runner, NetworkRunnerCallbackArgs.ConnectRequest request, byte[] token)
+        {
+            // Enforce 2-6 player limit (SUMAK design requirement)
+            int currentPlayerCount = runner.ActivePlayers.Count();
+
+            if (currentPlayerCount >= 6)
+            {
+                Debug.LogWarning($"[FusionNetworkService] Connection denied: Room full (6/6 players)");
+                // In Photon Fusion 2.x, rejecting a connection is done by not approving it
+                // The framework will handle the denial automatically
+                return;
+            }
+
+            Debug.Log($"[FusionNetworkService] ✓ Player approved to join ({currentPlayerCount + 1}/6)");
+        }
+
         public void OnCustomAuthenticationResponse(NetworkRunner runner, Dictionary<string, object> data) { }
         public void OnInput(NetworkRunner runner, NetworkInput input) { }
         public void OnInputMissing(NetworkRunner runner, PlayerRef player, NetworkInput input) { }

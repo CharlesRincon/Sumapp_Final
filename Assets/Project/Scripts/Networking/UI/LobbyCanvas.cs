@@ -40,6 +40,8 @@ namespace Networking.UI
         [SerializeField] private Button _loadGameButton;
         [SerializeField] private Button _openVuforiaButton;
         [Space]
+        [SerializeField] private TurnOrderPanel _turnOrderPanel;
+        [Space]
         [SerializeField] private GameObject _vuforiaPanel;
         [SerializeField] private GameObject _backgroundImage;
         [SerializeField] private GameObject _vuforiaARCamera;
@@ -92,6 +94,20 @@ namespace Networking.UI
             if (OnGameLoadEvent != null)
             {
                 OnGameLoadEvent.RegisterResponse(OnGameLoad);
+            }
+
+            // Auto-find TurnOrderPanel if not assigned
+            if (_turnOrderPanel == null)
+            {
+                _turnOrderPanel = FindFirstObjectByType<TurnOrderPanel>();
+                if (_turnOrderPanel != null)
+                {
+                    Debug.Log("[LobbyCanvas] TurnOrderPanel auto-found and assigned.");
+                }
+                else
+                {
+                    Debug.LogError("[LobbyCanvas] TurnOrderPanel not assigned in inspector and not found in scene!");
+                }
             }
 
             // Wire Vuforia button if assigned
@@ -344,11 +360,13 @@ namespace Networking.UI
         /// <summary>
         /// Called when character selection phase completes.
         /// Shows game lobby panel with selected characters visible.
+        /// Then triggers turn order initialization phase.
         /// Called on ALL clients via the global OnCharacterSelectionCompleteEvent.
         /// </summary>
         private void OnCharacterSelectionComplete(PlayerRef player, NetworkRunner runner)
         {
-            Debug.Log($"[LobbyCanvas] Character selection completed on all clients. Runner: {(runner != null ? runner.name : "NULL")}");
+            bool isHost = runner != null && runner.IsServer;
+            Debug.Log($"[LobbyCanvas] ◆◆◆ OnCharacterSelectionComplete fired on {(isHost ? "HOST" : "CLIENT")} ◆◆◆");
             
             // Hide character selection panel
             if (_characterSelectionPanel != null)
@@ -372,9 +390,56 @@ namespace Networking.UI
             // Only host can load game
             if (_loadGameButton != null)
             {
-                bool isHost = runner != null && runner.IsServer;
-                _loadGameButton.gameObject.SetActive(isHost);
-                Debug.Log($"[LobbyCanvas] Load Game button active for host: {isHost}");
+                bool isHostCheck = runner != null && runner.IsServer;
+                _loadGameButton.gameObject.SetActive(isHostCheck);
+                Debug.Log($"[LobbyCanvas] Load Game button active for host: {isHostCheck}");
+            }
+
+            // Start turn order initialization (Roll for turn order - Round 1 only)
+            Debug.Log($"[LobbyCanvas] About to call StartTurnOrderPhase on {(isHost ? "HOST" : "CLIENT")}");
+            StartTurnOrderPhase(runner);
+        }
+
+        /// <summary>
+        /// Initiated turn order initialization phase (SUMAK Round 1: ROLL_ORDER state).
+        /// Players will roll D10 to determine turn order for all subsequent rounds.
+        /// </summary>
+        private void StartTurnOrderPhase(NetworkRunner runner)
+        {
+            bool isHost = runner != null && runner.IsServer;
+            Debug.Log($"[LobbyCanvas] StartTurnOrderPhase called on {(isHost ? "HOST" : "CLIENT")}");
+
+            // Update game state
+            var gameManager = Networking.Managers.GameManager.Instance;
+            if (gameManager != null)
+            {
+                gameManager.SetGameState(Networking.Managers.GameManager.GameState.TurnOrderInitialization);
+                Debug.Log($"[LobbyCanvas] GameState set to TurnOrderInitialization on {(isHost ? "HOST" : "CLIENT")}");
+            }
+
+            // Find or assign TurnOrderPanel if not already assigned
+            if (_turnOrderPanel == null)
+            {
+                Debug.LogWarning("[LobbyCanvas] TurnOrderPanel not assigned. Attempting to find it...");
+                _turnOrderPanel = FindFirstObjectByType<TurnOrderPanel>();
+                if (_turnOrderPanel != null)
+                {
+                    Debug.Log("[LobbyCanvas] TurnOrderPanel found and assigned!");
+                }
+            }
+
+            // Start the TurnOrderPanel
+            Debug.Log($"[LobbyCanvas] Checking TurnOrderPanel reference: {(_turnOrderPanel != null ? "ASSIGNED" : "NULL")}");
+            
+            if (_turnOrderPanel != null)
+            {
+                Debug.Log($"[LobbyCanvas] TurnOrderPanel found. Calling StartTurnOrderPhase on {(isHost ? "HOST" : "CLIENT")}");
+                _turnOrderPanel.StartTurnOrderPhase();
+                Debug.Log($"[LobbyCanvas] ✓ Turn order phase started on {(isHost ? "HOST" : "CLIENT")}");
+            }
+            else
+            {
+                Debug.LogError($"[LobbyCanvas] ✗✗✗ TurnOrderPanel reference is NULL on {(isHost ? "HOST" : "CLIENT")}! Panel will NOT be shown. Make sure it's in the scene with the TurnOrderPanel component!");
             }
         }
 
@@ -608,6 +673,8 @@ namespace Networking.UI
 
         private void ResetCanvas(PlayerRef player, NetworkRunner runner)
         {
+            Debug.Log("[LobbyCanvas] Canvas reset");
+            
             _initPanel.SetActive(true);
             _modeButtons.SetActive(true);
             _lobbyPanel.SetActive(false);
@@ -707,6 +774,30 @@ namespace Networking.UI
             {
                 _diceResultText.text = string.Empty;
             }
+        }
+
+        /// <summary>
+        /// Display message when room is full (6/6 players).
+        /// Called by FusionNetworkService when join is denied.
+        /// </summary>
+        public void ShowRoomFullMessage()
+        {
+            Debug.LogWarning("[LobbyCanvas] Room is full! Maximum 6 players reached. New join attempts will be rejected.");
+            
+            // Optional: Show UI feedback if you have a message panel
+            // Example: _lobbyStatusText.text = "Room Full (6/6)";
+        }
+
+        /// <summary>
+        /// Display warning when player count is near max.
+        /// Called when 5 players are in the room (1 slot remaining).
+        /// </summary>
+        public void ShowRoomAlmostFullMessage()
+        {
+            Debug.LogWarning("[LobbyCanvas] Room is almost full (5/6 players). Only 1 slot remaining!");
+            
+            // Optional: Show UI feedback
+            // Example: _lobbyStatusText.text = "Room Almost Full (5/6)";
         }
     }
 }

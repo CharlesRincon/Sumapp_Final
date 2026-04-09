@@ -24,8 +24,13 @@ namespace Networking.Managers
         public enum GameState
         {
             Lobby,
+            CharacterSelection,
+            TurnOrderInitialization,  // First round: players roll to determine turn order
             Playing,
-            Loading
+            Loading,
+            Minigame,
+            Victory,
+            Defeat
         }
 
         public GameState State { get; private set; }
@@ -65,7 +70,6 @@ namespace Networking.Managers
             // Try to get from stored dictionary first (most reliable)
             if (_playerData.ContainsKey(player))
             {
-                Debug.Log($"[GameManager.GetPlayerData] Player {player.PlayerId}: Using dictionary reference. MinigameClickCount={_playerData[player].MinigameClickCount}");
                 return _playerData[player];
             }
 

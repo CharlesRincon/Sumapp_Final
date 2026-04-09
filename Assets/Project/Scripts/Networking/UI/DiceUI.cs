@@ -41,7 +41,12 @@ namespace Networking.UI
 
             if (_lobbyCanvas == null)
             {
-                Debug.LogError("[DiceUI] LobbyCanvas not initialized!");
+                _lobbyCanvas = FindFirstObjectByType<Networking.UI.LobbyCanvas>();
+            }
+
+            if (_lobbyCanvas == null)
+            {
+                Debug.LogError("[DiceUI] LobbyCanvas not found!");
                 return;
             }
 

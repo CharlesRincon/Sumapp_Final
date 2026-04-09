@@ -46,7 +46,8 @@ namespace Networking.Services
             {
                 GameMode = mode,
                 SessionName = room,
-                SceneManager = sceneLoader
+                SceneManager = sceneLoader,
+                PlayerCount = 6  // Max 6 players (SUMAK design: 2-6 players)
             });
 
             SetConnectionStatus(ConnectionStatus.Connected, "");

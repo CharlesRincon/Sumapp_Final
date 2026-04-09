@@ -14,7 +14,7 @@ namespace Networking.Models
     {
         [Networked]
         public NetworkString<_16> Nick { get; set; }
-        
+
         [Networked]
         public NetworkObject Instance { get; set; }
 
@@ -45,6 +45,24 @@ namespace Networking.Models
         /// </summary>
         [Networked]
         public float LastDiceRollTime { get; set; }
+
+        [Networked]
+        public int WaterAmount { get; set; }
+
+        [Networked]
+        public int BoardPosition { get; set; }
+
+        [Networked]
+        public int TurnOrder { get; set; }
+
+        [Networked]
+        public bool IsActiveTurn { get; set; }
+
+        [Networked]
+        public bool HasRolledThisTurn { get; set; }
+
+        [Networked]
+        public int BasinHealth { get; set; }
 
         public FusionEvent OnPlayerDataSpawnedEvent;
 
@@ -101,23 +119,76 @@ namespace Networking.Models
         }
 
         /// <summary>
-        /// RPC to roll a D10 dice (1-10).
-        /// Called by the player (InputAuthority) and executed on the host (StateAuthority).
-        /// The host generates the random result and syncs it to all clients.
+        /// Backward-compatible wrapper for older UI callers.
+        /// Sends the validated roll request RPC from the local input-authority context.
         /// </summary>
-        [Rpc(sources: RpcSources.InputAuthority, targets: RpcTargets.StateAuthority, HostMode = RpcHostMode.SourceIsHostPlayer)]
         public void RPC_RollDice()
         {
-            LastDiceRoll = Random.Range(1, 11);  // 1-10
-            LastDiceRollTime = (float)Runner.SimulationTime;
-            Debug.Log($"[PlayerSessionData.RPC_RollDice] Player {Object.InputAuthority.PlayerId} rolled: {LastDiceRoll}");
+            RPC_RequestValidatedTurnRoll();
+        }
+
+        /// <summary>
+        /// Input-authority request; host validates active-turn and resolves full turn execution.
+        /// </summary>
+        [Rpc(sources: RpcSources.InputAuthority, targets: RpcTargets.StateAuthority, HostMode = RpcHostMode.SourceIsHostPlayer)]
+        public void RPC_RequestValidatedTurnRoll()
+        {
+            if (!Object.HasStateAuthority)
+            {
+                return;
+            }
+
+            var runner = Runner;
+            var gameManager = Networking.Managers.GameManager.Instance;
+            var networkService = UnityEngine.Object.FindFirstObjectByType<Networking.Services.FusionNetworkService>();
+
+            if (runner == null || gameManager == null || networkService == null)
+            {
+                Debug.LogError("[PlayerSessionData] Missing dependencies for validated turn roll request.");
+                return;
+            }
+
+            // Turn-order initialization allows each player to roll once before active-turn flow starts.
+            if (gameManager.State == Networking.Managers.GameManager.GameState.TurnOrderInitialization)
+            {
+                if (LastDiceRoll > 0)
+                {
+                    return;
+                }
+
+                LastDiceRoll = networkService.GenerateValidatedDiceRoll();
+                LastDiceRollTime = (float)runner.SimulationTime;
+
+                Networking.Events.NetworkEventDefinitions.Instance?.OnDiceRolledEvent?.Raise(Object.InputAuthority, runner);
+                Debug.Log($"[PlayerSessionData] Turn-order roll {LastDiceRoll} for player {Object.InputAuthority.PlayerId}");
+                return;
+            }
+
+            var activePlayer = gameManager.GetActivePlayer(runner);
+            if (!networkService.ValidateDiceRollRequest(Object.InputAuthority, activePlayer, runner))
+            {
+                return;
+            }
+
+            if (HasRolledThisTurn)
+            {
+                return;
+            }
+
+            LastDiceRoll = networkService.GenerateValidatedDiceRoll();
+            LastDiceRollTime = (float)runner.SimulationTime;
+            HasRolledThisTurn = true;
+
+            Networking.Events.NetworkEventDefinitions.Instance?.OnDiceRolledEvent?.Raise(Object.InputAuthority, runner);
+
+            Debug.Log($"[PlayerSessionData] Host validated dice roll {LastDiceRoll} for player {Object.InputAuthority.PlayerId}");
         }
 
         public override void Spawned()
         {
             _changeDetector = GetChangeDetector(ChangeDetector.Source.SimulationState, false);
             Debug.Log($"[PlayerSessionData.Spawned] Player {Object.InputAuthority.AsIndex}: MinigameClickCount={MinigameClickCount}, HasInputAuthority={Object.HasInputAuthority}, HasStateAuthority={Object.HasStateAuthority}");
-            
+
             if (Object.HasInputAuthority)
             {
                 string nickName = PlayerPrefs.GetString("Nick", string.Empty);
@@ -132,7 +203,7 @@ namespace Networking.Models
             {
                 Networking.Managers.GameManager.Instance.SetPlayerDataObject(Object.InputAuthority, this);
             }
-            
+
             Debug.Log($"[PlayerSessionData.Spawned] Player {Object.InputAuthority.AsIndex}: Spawn complete. MinigameClickCount={MinigameClickCount}");
         }
 

@@ -49,7 +49,7 @@ namespace Networking.UI
         [SerializeField] private GameObject _modeButtons;
         [SerializeField] private TMP_InputField _nickname;
         [SerializeField] private TMP_InputField _room;
-        
+
         /// <summary>
         /// Character Selection UI panel (set in inspector).
         /// Displayed when host presses "Start Game" button.
@@ -75,7 +75,7 @@ namespace Networking.UI
             OnPlayerLeftEvent.RegisterResponse(UpdateLobbyList);
             OnPlayerDataSpawnedEvent.RegisterResponse(UpdateLobbyList);
             OnPlayerDataSpawnedEvent.RegisterResponse(UpdateGameLobbyList);
-            
+
             // Load character selection complete event from resources if not assigned in inspector
             if (OnCharacterSelectionCompleteEvent == null)
             {
@@ -131,7 +131,7 @@ namespace Networking.UI
             OnPlayerLeftEvent.RemoveResponse(UpdateLobbyList);
             OnPlayerDataSpawnedEvent.RemoveResponse(UpdateLobbyList);
             OnPlayerDataSpawnedEvent.RemoveResponse(UpdateGameLobbyList);
-            
+
             if (OnCharacterSelectionCompleteEvent != null)
             {
                 OnCharacterSelectionCompleteEvent.RemoveResponse(OnCharacterSelectionComplete);
@@ -165,12 +165,12 @@ namespace Networking.UI
         private void Update()
         {
             var runner = Networking.Services.FusionNetworkService.LocalRunner;
-            
+
             // On first frame with a runner, check if we're restoring an existing session
             if (!_sessionRestored && runner != null)
             {
                 _sessionRestored = true;
-                
+
                 // Check if any player has a selected character (meaning selection already happened)
                 bool anyCharacterSelected = false;
                 foreach (var player in runner.ActivePlayers)
@@ -182,12 +182,12 @@ namespace Networking.UI
                         break;
                     }
                 }
-                
+
                 // If characters are selected but no CharacterSelectionManager, we're returning from minigame
                 if (anyCharacterSelected && FindFirstObjectByType<Networking.Managers.CharacterSelectionManager>() == null)
                 {
                     Debug.Log("[LobbyCanvas] Detected return from minigame. Showing GameLobbyPanel.");
-                    
+
                     // Hide init/lobby panels
                     if (_initPanel != null)
                         _initPanel.SetActive(false);
@@ -197,7 +197,7 @@ namespace Networking.UI
                         _modeButtons.SetActive(false);
                     if (_characterSelectionPanel != null && _characterSelectionPanel.gameObject.activeSelf)
                         _characterSelectionPanel.Hide();
-                        
+
                     // Show game lobby panel
                     if (_gameLobbyPanel != null)
                     {
@@ -205,14 +205,14 @@ namespace Networking.UI
                         UpdateGameLobbyList(PlayerRef.None, runner);
                         Debug.Log("[LobbyCanvas] Game lobby panel shown (restored session).");
                     }
-                    
+
                     // Show load game button only for host
                     if (_loadGameButton != null)
                     {
                         bool isHost = runner.IsServer;
                         _loadGameButton.gameObject.SetActive(isHost);
                     }
-                    
+
                     return; // Skip the rest of Update() logic
                 }
                 else if (!anyCharacterSelected)
@@ -256,7 +256,7 @@ namespace Networking.UI
                             break;
                         }
                     }
-                    
+
                     // Only show GameLobbyPanel if characters are selected (minigame return)
                     if (anyCharacterSelected)
                     {
@@ -336,7 +336,7 @@ namespace Networking.UI
 
             // Hide lobby panel immediately on host
             _lobbyPanel.SetActive(false);
-            
+
             // Initialize character selection panel with the manager
             if (_characterSelectionPanel != null)
             {
@@ -367,7 +367,7 @@ namespace Networking.UI
         {
             bool isHost = runner != null && runner.IsServer;
             Debug.Log($"[LobbyCanvas] ◆◆◆ OnCharacterSelectionComplete fired on {(isHost ? "HOST" : "CLIENT")} ◆◆◆");
-            
+
             // Hide character selection panel
             if (_characterSelectionPanel != null)
             {
@@ -413,8 +413,8 @@ namespace Networking.UI
             var gameManager = Networking.Managers.GameManager.Instance;
             if (gameManager != null)
             {
-                gameManager.SetGameState(Networking.Managers.GameManager.GameState.TurnOrderInitialization);
-                Debug.Log($"[LobbyCanvas] GameState set to TurnOrderInitialization on {(isHost ? "HOST" : "CLIENT")}");
+                gameManager.SetGameState(Networking.Managers.GameManager.GameState.RollOrder);
+                Debug.Log($"[LobbyCanvas] GameState set to RollOrder on {(isHost ? "HOST" : "CLIENT")}");
             }
 
             // Find or assign TurnOrderPanel if not already assigned
@@ -430,7 +430,7 @@ namespace Networking.UI
 
             // Start the TurnOrderPanel
             Debug.Log($"[LobbyCanvas] Checking TurnOrderPanel reference: {(_turnOrderPanel != null ? "ASSIGNED" : "NULL")}");
-            
+
             if (_turnOrderPanel != null)
             {
                 Debug.Log($"[LobbyCanvas] TurnOrderPanel found. Calling StartTurnOrderPhase on {(isHost ? "HOST" : "CLIENT")}");
@@ -449,18 +449,18 @@ namespace Networking.UI
         public void UpdateGameLobbyList(PlayerRef playerRef, NetworkRunner runner)
         {
             string playerInfo = "Not Ready";
-            
+
             if (runner != null)
             {
                 var localPlayerData = Networking.Managers.GameManager.Instance.GetPlayerData(runner.LocalPlayer, runner);
-                
+
                 if (localPlayerData != null)
                 {
                     string characterName = "";
-                    
+
                     // Get selected character name
                     Debug.Log($"[LobbyCanvas] Local player SelectedCharacterId: {localPlayerData.SelectedCharacterId}");
-                    
+
                     if (localPlayerData.SelectedCharacterId > 0)
                     {
                         var charConfig = Networking.Managers.CharacterDatabase.Instance.GetCharacterById(localPlayerData.SelectedCharacterId);
@@ -476,7 +476,7 @@ namespace Networking.UI
                     }
                     else
                     {
-                        Debug.LogWarning("[LobbyCanvas] Local player SelectedCharacterId is 0 or negative!");
+                        // Normal during early sync before character selection completes.
                     }
 
                     playerInfo = $"{localPlayerData.Nick} (You){characterName}";
@@ -520,7 +520,7 @@ namespace Networking.UI
             }
 
             Debug.Log("[LobbyCanvas] Host initiating game load. Broadcasting RPC to all players to load minigame scene.");
-            
+
             // Call RPC on all player data objects to load minigame on all clients
             foreach (var player in runner.ActivePlayers)
             {
@@ -555,7 +555,7 @@ namespace Networking.UI
         {
             // Change "Minigame" to your actual scene name
             string sceneToLoad = "Minigame";
-            
+
             Debug.Log($"[LobbyCanvas] Attempting to load scene: '{sceneToLoad}'");
 
             if (string.IsNullOrEmpty(sceneToLoad))
@@ -664,7 +664,7 @@ namespace Networking.UI
 
         public void CloseLobby()
         {
-            foreach(var player in Networking.Services.FusionNetworkService.LocalRunner.ActivePlayers)
+            foreach (var player in Networking.Services.FusionNetworkService.LocalRunner.ActivePlayers)
             {
                 if (player != Networking.Services.FusionNetworkService.LocalRunner.LocalPlayer)
                     Networking.Services.FusionNetworkService.LocalRunner.Disconnect(player);
@@ -674,7 +674,7 @@ namespace Networking.UI
         private void ResetCanvas(PlayerRef player, NetworkRunner runner)
         {
             Debug.Log("[LobbyCanvas] Canvas reset");
-            
+
             _initPanel.SetActive(true);
             _modeButtons.SetActive(true);
             _lobbyPanel.SetActive(false);
@@ -705,7 +705,7 @@ namespace Networking.UI
             _startButton.gameObject.SetActive(runner.IsServer);
             string players = default;
             string isLocal;
-            foreach(var player in runner.ActivePlayers)
+            foreach (var player in runner.ActivePlayers)
             {
                 isLocal = player == runner.LocalPlayer ? " (You)" : string.Empty;
                 var playerData = Networking.Managers.GameManager.Instance.GetPlayerData(player, runner);
@@ -783,7 +783,7 @@ namespace Networking.UI
         public void ShowRoomFullMessage()
         {
             Debug.LogWarning("[LobbyCanvas] Room is full! Maximum 6 players reached. New join attempts will be rejected.");
-            
+
             // Optional: Show UI feedback if you have a message panel
             // Example: _lobbyStatusText.text = "Room Full (6/6)";
         }
@@ -795,7 +795,7 @@ namespace Networking.UI
         public void ShowRoomAlmostFullMessage()
         {
             Debug.LogWarning("[LobbyCanvas] Room is almost full (5/6 players). Only 1 slot remaining!");
-            
+
             // Optional: Show UI feedback
             // Example: _lobbyStatusText.text = "Room Almost Full (5/6)";
         }

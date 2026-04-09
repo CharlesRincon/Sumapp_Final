@@ -102,7 +102,7 @@ namespace Networking.UI
         }
 
         /// <summary>
-        /// Animate random numbers, then call RPC_RollDice on PlayerSessionData.
+        /// Animate random numbers, then request a validated turn roll.
         /// The host generates the final value and Fusion syncs it to all clients.
         /// </summary>
         private IEnumerator RollCoroutine()
@@ -124,12 +124,19 @@ namespace Networking.UI
                 yield return null;
             }
 
-            // Call RPC — host generates the roll value and stores on [Networked] LastDiceRoll
+            // Send a single RPC request to host validation flow.
             var localData = GetPlayerData(_runner.LocalPlayer);
             if (localData != null)
             {
-                localData.RPC_RollDice();
-                Debug.Log($"[TurnOrderPanel] RPC_RollDice called for local player {_runner.LocalPlayer.PlayerId}");
+                if (!localData.Object.HasInputAuthority)
+                {
+                    Debug.LogError($"[TurnOrderPanel] Local player data has no input authority for player {_runner.LocalPlayer.PlayerId}.");
+                }
+                else
+                {
+                    localData.RPC_RequestValidatedTurnRoll();
+                    Debug.Log($"[TurnOrderPanel] RPC_RequestValidatedTurnRoll called for local player {_runner.LocalPlayer.PlayerId}");
+                }
             }
             else
             {
@@ -276,9 +283,9 @@ namespace Networking.UI
                 _panelGameObject.SetActive(false);
 
             _phaseActive = false;
-            Debug.Log("[TurnOrderPanel] Panel closed. Transitioning to Playing state.");
+            Debug.Log("[TurnOrderPanel] Panel closed. Transitioning to PlayerTurn state.");
 
-            Networking.Managers.GameManager.Instance?.SetGameState(Networking.Managers.GameManager.GameState.Playing);
+            Networking.Managers.GameManager.Instance?.SetGameState(Networking.Managers.GameManager.GameState.PlayerTurn);
         }
     }
 }

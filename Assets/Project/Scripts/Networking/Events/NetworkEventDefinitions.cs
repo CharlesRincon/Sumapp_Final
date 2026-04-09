@@ -38,6 +38,15 @@ namespace Networking.Events
         public FusionEvent OnRoomPropertiesChangedEvent;
         public FusionEvent OnPlayerKickedEvent;
 
+        [Header("Round Slice Events")]
+        public FusionEvent OnRoundStartedEvent;
+        public FusionEvent OnRoundEndedEvent;
+        public FusionEvent OnTurnStartedEvent;
+        public FusionEvent OnDiceRolledEvent;
+        public FusionEvent OnPlayerMovedEvent;
+        public FusionEvent OnPlayerWaterChangedEvent;
+        public FusionEvent OnBasinStateChangedEvent;
+
         /// <summary>
         /// Gets a singleton instance of these definitions.
         /// Can be loaded from Resources or assigned via Inspector.
@@ -77,7 +86,14 @@ namespace Networking.Events
                 && OnSceneLoadStartEvent != null
                 && OnSceneLoadCompleteEvent != null
                 && OnRoomPropertiesChangedEvent != null
-                && OnPlayerKickedEvent != null;
+                && OnPlayerKickedEvent != null
+                && OnRoundStartedEvent != null
+                && OnRoundEndedEvent != null
+                && OnTurnStartedEvent != null
+                && OnDiceRolledEvent != null
+                && OnPlayerMovedEvent != null
+                && OnPlayerWaterChangedEvent != null
+                && OnBasinStateChangedEvent != null;
         }
     }
 }

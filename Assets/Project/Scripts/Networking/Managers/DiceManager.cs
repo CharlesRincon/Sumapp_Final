@@ -24,8 +24,9 @@ namespace Networking.Managers
             else if (Instance != this)
             {
                 Destroy(gameObject);
+                return;
             }
-            DontDestroyOnLoad(gameObject);
+            DontDestroyOnLoad(transform.root.gameObject);
         }
 
         private void Start()
@@ -47,9 +48,21 @@ namespace Networking.Managers
         /// </summary>
         public void RequestDiceRoll(PlayerRef player)
         {
-            if (_runner == null)
+            if (!EnsureActiveRunner())
             {
-                Debug.LogError("[DiceManager.RequestDiceRoll] NetworkRunner not found!");
+                Debug.LogError("[DiceManager.RequestDiceRoll] NetworkRunner not found or not running!");
+                return;
+            }
+
+            if (!player.IsRealPlayer)
+            {
+                Debug.LogWarning("[DiceManager.RequestDiceRoll] Invalid local player reference.");
+                return;
+            }
+
+            if (GameManager.Instance == null)
+            {
+                Debug.LogError("[DiceManager.RequestDiceRoll] GameManager instance not found!");
                 return;
             }
 
@@ -60,9 +73,32 @@ namespace Networking.Managers
                 return;
             }
 
+            if (!playerData.IsActiveTurn)
+            {
+                Debug.LogWarning("[DiceManager] Roll request ignored: not this player's active turn.");
+                return;
+            }
+
             // Call the RPC to roll the dice
-            playerData.RPC_RollDice();
+            playerData.RPC_RequestValidatedTurnRoll();
             Debug.Log($"[DiceManager] Dice roll requested for player {player.PlayerId}");
+        }
+
+        private bool EnsureActiveRunner()
+        {
+            if (_runner != null && _runner.IsRunning)
+            {
+                return true;
+            }
+
+            _runner = Networking.Services.FusionNetworkService.LocalRunner;
+            if (_runner != null && _runner.IsRunning)
+            {
+                return true;
+            }
+
+            _runner = FindFirstObjectByType<NetworkRunner>();
+            return _runner != null && _runner.IsRunning;
         }
 
         /// <summary>

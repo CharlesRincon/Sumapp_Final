@@ -23,6 +23,33 @@ namespace Networking.Services
         public FusionEvent OnShutdownEvent;
         public FusionEvent OnDisconnectEvent;
 
+        /// <summary>
+        /// Host-side validation for dice roll requests.
+        /// </summary>
+        public bool ValidateDiceRollRequest(PlayerRef requestingPlayer, PlayerRef activePlayer, NetworkRunner runner)
+        {
+            if (runner == null || !runner.IsServer)
+            {
+                return false;
+            }
+
+            if (requestingPlayer != activePlayer)
+            {
+                Debug.LogWarning($"[FusionNetworkService] Dice request rejected. Requesting={requestingPlayer.PlayerId}, Active={activePlayer.PlayerId}");
+                return false;
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// Host-side dice generation for the round slice.
+        /// </summary>
+        public int GenerateValidatedDiceRoll()
+        {
+            return UnityEngine.Random.Range(1, 11);
+        }
+
         public void OnObjectExitAOI(NetworkRunner runner, NetworkObject obj, PlayerRef player) { }
 
         public void OnObjectEnterAOI(NetworkRunner runner, NetworkObject obj, PlayerRef player) { }
@@ -42,7 +69,7 @@ namespace Networking.Services
             // Log player count status (SUMAK: 2-6 players max)
             int playerCount = runner.ActivePlayers.Count();
             Debug.Log($"[FusionNetworkService] Player {player.PlayerId} joined. Total: {playerCount}/6");
-            
+
             if (playerCount >= 5)
             {
                 Debug.Log("[FusionNetworkService] Room almost full (5/6 or 6/6)!");
@@ -58,13 +85,21 @@ namespace Networking.Services
 
         public void OnShutdown(NetworkRunner runner, ShutdownReason shutdownReason)
         {
+            if (LocalRunner == runner)
+            {
+                LocalRunner = null;
+            }
             OnShutdownEvent?.Raise(runner: runner);
         }
 
         void INetworkRunnerCallbacks.OnConnectedToServer(NetworkRunner runner) { }
-        
+
         void INetworkRunnerCallbacks.OnDisconnectedFromServer(NetworkRunner runner, NetDisconnectReason reason)
         {
+            if (LocalRunner == runner)
+            {
+                LocalRunner = null;
+            }
             OnDisconnectEvent?.Raise(runner: runner);
         }
 

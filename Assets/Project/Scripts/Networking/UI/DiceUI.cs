@@ -1,5 +1,6 @@
 using UnityEngine;
 using System.Collections;
+using Fusion;
 
 namespace Networking.UI
 {
@@ -12,11 +13,15 @@ namespace Networking.UI
     public class DiceUI : MonoBehaviour
     {
         private Networking.UI.LobbyCanvas _lobbyCanvas;
+        private Networking.Managers.DiceManager _diceManager;
+        private NetworkRunner _runner;
         private bool _isRolling = false;
 
         private void Start()
         {
             _lobbyCanvas = FindFirstObjectByType<Networking.UI.LobbyCanvas>();
+            _diceManager = Networking.Managers.DiceManager.Instance;
+            _runner = FindFirstObjectByType<NetworkRunner>();
 
             if (_lobbyCanvas == null)
             {
@@ -44,6 +49,16 @@ namespace Networking.UI
                 _lobbyCanvas = FindFirstObjectByType<Networking.UI.LobbyCanvas>();
             }
 
+            if (_diceManager == null)
+            {
+                _diceManager = Networking.Managers.DiceManager.Instance;
+            }
+
+            if (_runner == null)
+            {
+                _runner = FindFirstObjectByType<NetworkRunner>();
+            }
+
             if (_lobbyCanvas == null)
             {
                 Debug.LogError("[DiceUI] LobbyCanvas not found!");
@@ -64,23 +79,48 @@ namespace Networking.UI
 
             Debug.Log("[DiceUI] Starting dice roll animation (2 seconds)...");
 
-            // Roll for 2 seconds - display random numbers
-            while (elapsedTime < rollDuration)
+            try
             {
-                int randomNumber = Random.Range(1, 11);  // 1-10
-                _lobbyCanvas.DisplayDiceResult(randomNumber);
-                
-                elapsedTime += Time.deltaTime;
-                yield return null;  // Wait one frame
+                // Roll for 2 seconds - display random numbers
+                while (elapsedTime < rollDuration)
+                {
+                    int randomNumber = Random.Range(1, 11);  // 1-10
+                    _lobbyCanvas.DisplayDiceResult(randomNumber);
+
+                    elapsedTime += Time.deltaTime;
+                    yield return null;  // Wait one frame
+                }
+
+                // Re-fetch runner to avoid stale reference
+                _runner = Networking.Services.FusionNetworkService.LocalRunner;
+                if (_runner == null)
+                {
+                    _runner = FindFirstObjectByType<NetworkRunner>();
+                }
+                _diceManager = Networking.Managers.DiceManager.Instance;
+
+                if (_runner != null && _runner.LocalPlayer.IsRealPlayer && _diceManager != null)
+                {
+                    _diceManager.RequestDiceRoll(_runner.LocalPlayer);
+
+                    var gameManager = Networking.Managers.GameManager.Instance;
+                    var localData = gameManager != null ? gameManager.GetPlayerData(_runner.LocalPlayer, _runner) : null;
+                    float wait = 0f;
+                    while (localData != null && localData.LastDiceRoll == 0 && wait < 3f)
+                    {
+                        wait += Time.deltaTime;
+                        yield return null;
+                    }
+
+                    int finalRoll = localData != null ? localData.LastDiceRoll : 0;
+                    _lobbyCanvas.DisplayDiceResult(finalRoll);
+                    Debug.Log($"[DiceUI] Synced dice result: {finalRoll}");
+                }
             }
-
-            // Lock in the final result locally
-            int finalRoll = Random.Range(1, 11);  // 1-10
-            _lobbyCanvas.DisplayDiceResult(finalRoll);
-
-            Debug.Log($"[DiceUI] Final dice result: {finalRoll}. You need to move {finalRoll} steps!");
-
-            _isRolling = false;
+            finally
+            {
+                _isRolling = false;
+            }
         }
     }
 }

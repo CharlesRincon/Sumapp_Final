@@ -46,16 +46,24 @@ namespace FusionUtilsEvents
         public void RegisterResponse(Action<PlayerRef, NetworkRunner> response)
         {
             if (response == null) return;
-            Responses.Add(response);
+            if (!Responses.Contains(response))
+            {
+                Responses.Add(response);
+            }
         }
-        
+
         /// <summary>
         /// Unregisters an action from this event.
         /// </summary>
         public void RemoveResponse(Action<PlayerRef, NetworkRunner> response)
         {
-            if (Responses.Contains(response))
+            if (response == null) return;
+
+            // Remove all occurrences to clean up any accidental duplicate subscriptions.
+            while (Responses.Contains(response))
+            {
                 Responses.Remove(response);
+            }
         }
 
         /// <summary>

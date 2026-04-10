@@ -61,6 +61,9 @@ namespace Networking.UI
                 onCharacterSelectionCompleteEvent.RegisterResponse(OnCharacterSelectionCompleteGlobal);
             }
 
+            // Re-subscribe to manager events if this panel was disabled/enabled.
+            RegisterManagerEvents();
+
             // Try to auto-initialize if manager is already in scene (for non-host clients)
             if (!_hasInitialized)
             {
@@ -81,7 +84,7 @@ namespace Networking.UI
             {
                 float remaining = _selectionManager.GetRemainingTime();
                 _timerText.text = $"{Mathf.Max(0, remaining):F1}s";
-                
+
                 // Check if time has run out (all clients check together)
                 if (remaining <= 0 && gameObject.activeSelf)
                 {
@@ -132,7 +135,7 @@ namespace Networking.UI
             _selectionComplete = true;
             Debug.Log("[CharacterSelectionPanel] Selection complete detected - hiding panel and firing completion event.");
             Hide();
-            
+
             // Fire the global completion event so all clients transition
             var onCharacterSelectionCompleteEvent = Resources.Load<FusionUtilsEvents.FusionEvent>("Events/OnCharacterSelectionCompleteEvent");
             if (onCharacterSelectionCompleteEvent != null)
@@ -168,6 +171,8 @@ namespace Networking.UI
 
         private void OnDisable()
         {
+            UnregisterManagerEvents();
+
             // Unsubscribe from player data events
             var onPlayerDataSpawnedEvent = Resources.Load<FusionUtilsEvents.FusionEvent>("Events/OnPlayerDataSpawnedEvent");
             if (onPlayerDataSpawnedEvent != null)
@@ -181,6 +186,12 @@ namespace Networking.UI
             {
                 onCharacterSelectionCompleteEvent.RemoveResponse(OnCharacterSelectionCompleteGlobal);
             }
+        }
+
+        private void OnDestroy()
+        {
+            // Extra safety for scene unload/room teardown paths where destroyed listeners can linger.
+            UnregisterManagerEvents();
         }
 
         /// <summary>
@@ -211,6 +222,38 @@ namespace Networking.UI
 
             // Show the panel with proper visibility settings
             Show();
+        }
+
+        private void RegisterManagerEvents()
+        {
+            if (_selectionManager == null)
+                return;
+
+            if (_selectionManager.SelectionCompleteEvent != null)
+            {
+                _selectionManager.SelectionCompleteEvent.RegisterResponse(OnSelectionPhaseComplete);
+            }
+
+            if (_selectionManager.TimeRemainingEvent != null)
+            {
+                _selectionManager.TimeRemainingEvent.RegisterResponse(UpdateTimer);
+            }
+        }
+
+        private void UnregisterManagerEvents()
+        {
+            if (_selectionManager == null)
+                return;
+
+            if (_selectionManager.SelectionCompleteEvent != null)
+            {
+                _selectionManager.SelectionCompleteEvent.RemoveResponse(OnSelectionPhaseComplete);
+            }
+
+            if (_selectionManager.TimeRemainingEvent != null)
+            {
+                _selectionManager.TimeRemainingEvent.RemoveResponse(UpdateTimer);
+            }
         }
 
         /// <summary>
@@ -306,11 +349,14 @@ namespace Networking.UI
         /// </summary>
         private void OnSelectionPhaseComplete(PlayerRef player, NetworkRunner runner)
         {
+            if (this == null)
+                return;
+
             Debug.Log("[CharacterSelectionPanel] Character selection phase complete.");
-            
+
             // Notify listeners before hiding (e.g., LobbyCanvas)
             OnSelectionCompleteEvent?.Raise(PlayerRef.None, runner);
-            
+
             Hide();
         }
 
@@ -320,8 +366,11 @@ namespace Networking.UI
         /// </summary>
         private void OnCharacterSelectionCompleteGlobal(PlayerRef player, NetworkRunner runner)
         {
+            if (this == null)
+                return;
+
             Debug.Log($"[CharacterSelectionPanel] Global completion event received - ALL clients transitioning. Runner: {(runner != null ? runner.name : "NULL")}");
-            
+
             // Mark as complete so we don't fire again
             _selectionComplete = true;
             Hide();
@@ -332,6 +381,9 @@ namespace Networking.UI
         /// </summary>
         public void Show()
         {
+            if (this == null)
+                return;
+
             _selectionComplete = false; // Reset for new selection phase
             gameObject.SetActive(true);
             if (_panelCanvasGroup != null)
@@ -346,6 +398,9 @@ namespace Networking.UI
         /// </summary>
         public void Hide()
         {
+            if (this == null)
+                return;
+
             gameObject.SetActive(false);
             if (_panelCanvasGroup != null)
             {

@@ -298,6 +298,8 @@ namespace Networking.Managers
                 data.LastDiceRollTime = 0f;
                 data.IsActiveTurn = false;
                 data.HasRolledThisTurn = false;
+                data.IsInMinigameReadyPhase = false;
+                data.IsReadyForMinigame = false;
 
                 if (data.WaterAmount <= 0)
                 {
@@ -392,17 +394,57 @@ namespace Networking.Managers
                 return;
             }
 
-            if (_currentRound >= Mathf.Max(1, _maxRoundsToWin))
+            EnterMinigameReadyPhase(runner);
+        }
+
+        private void EnterMinigameReadyPhase(NetworkRunner runner)
+        {
+            foreach (var player in runner.ActivePlayers)
             {
-                SetGameState(GameState.Victory);
-                Debug.Log($"[GameManager] Victory reached at round {_currentRound}.");
+                var data = GetPlayerData(player, runner);
+                if (data == null)
+                {
+                    continue;
+                }
+
+                data.IsActiveTurn = false;
+                data.HasRolledThisTurn = false;
+                data.IsInMinigameReadyPhase = true;
+                data.IsReadyForMinigame = false;
+            }
+
+            Debug.Log($"[GameManager] Round {_currentRound} ended. Waiting for all players to ready up for minigame.");
+        }
+
+        public void HandlePlayerReadyForMinigame(PlayerRef player, NetworkRunner runner)
+        {
+            if (runner == null || !runner.IsServer)
+            {
                 return;
             }
 
-            StartCoroutine(StartNextRoundRoutine(runner));
+            var playerData = GetPlayerData(player, runner);
+            if (playerData == null || !playerData.IsInMinigameReadyPhase || playerData.IsReadyForMinigame)
+            {
+                return;
+            }
+
+            playerData.IsReadyForMinigame = true;
+            Debug.Log($"[GameManager] Player {player.PlayerId} is ready for the minigame.");
+
+            foreach (var activePlayer in runner.ActivePlayers)
+            {
+                var activeData = GetPlayerData(activePlayer, runner);
+                if (activeData == null || !activeData.IsReadyForMinigame)
+                {
+                    return;
+                }
+            }
+
+            StartCoroutine(LoadMinigameWhenReady(runner));
         }
 
-        private IEnumerator StartNextRoundRoutine(NetworkRunner runner)
+        private IEnumerator LoadMinigameWhenReady(NetworkRunner runner)
         {
             if (_nextRoundDelaySeconds > 0f)
             {
@@ -414,11 +456,46 @@ namespace Networking.Managers
                 yield break;
             }
 
-            if (State == GameState.Defeat || State == GameState.Victory)
+            foreach (var player in runner.ActivePlayers)
             {
-                yield break;
+                var data = GetPlayerData(player, runner);
+                if (data == null)
+                {
+                    continue;
+                }
+
+                data.IsInMinigameReadyPhase = false;
+                data.IsReadyForMinigame = false;
             }
 
+            State = GameState.Minigame;
+            Debug.Log($"[GameManager] All players ready. Sending everyone to minigame.");
+
+            foreach (var player in runner.ActivePlayers)
+            {
+                var data = GetPlayerData(player, runner);
+                if (data != null)
+                    data.RPC_LoadMinigameScene();
+            }
+        }
+
+        /// <summary>
+        /// Called when returning from minigame scene to start the next round.
+        /// Triggered automatically by LobbyCanvas when it detects return from minigame.
+        /// </summary>
+        public void ResumeAfterMinigame(NetworkRunner runner)
+        {
+            if (runner == null || !runner.IsServer) return;
+            if (State == GameState.Defeat || State == GameState.Victory) return;
+
+            if (_currentRound >= Mathf.Max(1, _maxRoundsToWin))
+            {
+                SetGameState(GameState.Victory);
+                Debug.Log($"[GameManager] Victory reached after round {_currentRound} minigame.");
+                return;
+            }
+
+            Debug.Log($"[GameManager] Resuming after minigame. Starting round {_currentRound + 1}.");
             StartRound(runner);
         }
 

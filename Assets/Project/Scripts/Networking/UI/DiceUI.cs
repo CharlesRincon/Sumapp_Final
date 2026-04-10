@@ -78,12 +78,16 @@ namespace Networking.UI
                 int finalRoll = localData.LastDiceRoll;
                 _lobbyCanvas.DisplayDiceResult(finalRoll);
                 Debug.Log($"[DiceUI] Synced dice result: {finalRoll}");
+
+                // Keep the final result visible briefly before allowing the next UI phase.
+                yield return new WaitForSeconds(0.35f);
             }
             else
             {
                 Debug.LogError("[DiceUI] Local PlayerSessionData not found!");
             }
 
+            _lobbyCanvas.NotifyDiceRollCompleted();
             _isRolling = false;
         }
     }

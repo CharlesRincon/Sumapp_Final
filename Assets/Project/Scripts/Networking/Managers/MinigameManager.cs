@@ -145,13 +145,32 @@ namespace Networking.Managers
             return leaderboard;
         }
 
+        [SerializeField] private float _leaderboardDisplaySeconds = 5f;
+
         /// <summary>
         /// End the game and notify all clients.
+        /// After showing leaderboard, auto-return everyone to lobby.
         /// </summary>
         private void EndGame()
         {
             Debug.Log("[MinigameManager] Game ended on host. Broadcasting to all clients...");
             RPC_NotifyGameEnd();
+            StartCoroutine(ReturnToLobbyAfterDelay());
+        }
+
+        private System.Collections.IEnumerator ReturnToLobbyAfterDelay()
+        {
+            yield return new UnityEngine.WaitForSeconds(_leaderboardDisplaySeconds);
+
+            if (_runner == null || !_runner.IsServer) yield break;
+
+            Debug.Log("[MinigameManager] Leaderboard shown. Sending all players back to lobby.");
+            foreach (var player in _runner.ActivePlayers)
+            {
+                var data = Networking.Managers.GameManager.Instance?.GetPlayerData(player, _runner);
+                if (data != null)
+                    data.RPC_LoadLobbyScene();
+            }
         }
 
         /// <summary>

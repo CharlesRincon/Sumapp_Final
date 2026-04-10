@@ -40,6 +40,9 @@ namespace Networking.UI
         [SerializeField] private Button _loadGameButton;
         [SerializeField] private Button _openVuforiaButton;
         [SerializeField] private TextMeshProUGUI _turnStatusText;
+        [SerializeField] private GameObject _minigameReadyPanel;
+        [SerializeField] private TextMeshProUGUI _minigameReadyText;
+        [SerializeField] private Button _minigameReadyButton;
         [Space]
         [SerializeField] private TurnOrderPanel _turnOrderPanel;
         [Space]
@@ -123,6 +126,16 @@ namespace Networking.UI
                 _rollDiceButton.onClick.AddListener(OnRollDiceClicked);
                 _rollDiceButton.interactable = false;  // Disabled until game is ready
             }
+
+            if (_minigameReadyButton != null)
+            {
+                _minigameReadyButton.onClick.AddListener(OnMinigameReadyClicked);
+            }
+
+            if (_minigameReadyPanel != null)
+            {
+                _minigameReadyPanel.SetActive(false);
+            }
         }
 
         private void OnDisable()
@@ -153,6 +166,11 @@ namespace Networking.UI
             if (_rollDiceButton != null)
             {
                 _rollDiceButton.onClick.RemoveListener(OnRollDiceClicked);
+            }
+
+            if (_minigameReadyButton != null)
+            {
+                _minigameReadyButton.onClick.RemoveListener(OnMinigameReadyClicked);
             }
         }
 
@@ -213,6 +231,12 @@ namespace Networking.UI
                     {
                         bool isHost = runner.IsServer;
                         _loadGameButton.gameObject.SetActive(isHost);
+                    }
+
+                    // Host auto-starts the next round
+                    if (runner.IsServer)
+                    {
+                        Networking.Managers.GameManager.Instance?.ResumeAfterMinigame(runner);
                     }
 
                     return; // Skip the rest of Update() logic
@@ -277,6 +301,7 @@ namespace Networking.UI
             if (_gameLobbyPanel != null && _gameLobbyPanel.activeSelf && runner != null)
             {
                 RefreshTurnUI(runner);
+                RefreshMinigameReadyPanel(runner);
             }
         }
 
@@ -296,10 +321,6 @@ namespace Networking.UI
             var localData = gm.GetPlayerData(runner.LocalPlayer, runner);
             bool isMyTurn = localData != null && localData.IsActiveTurn;
 
-            // Clear rolling flag once our turn ends
-            if (!isMyTurn)
-                _diceRolling = false;
-
             // Button: enabled only when it's our turn and we haven't started rolling
             if (_rollDiceButton != null)
                 _rollDiceButton.interactable = isMyTurn && !_diceRolling;
@@ -308,6 +329,85 @@ namespace Networking.UI
             if (_turnStatusText != null && !_diceRolling)
             {
                 _turnStatusText.text = BuildTurnStatusText(gm, runner, isMyTurn);
+            }
+        }
+
+        private void RefreshMinigameReadyPanel(NetworkRunner runner)
+        {
+            if (_minigameReadyPanel == null)
+            {
+                return;
+            }
+
+            var gameManager = Networking.Managers.GameManager.Instance;
+            var localData = gameManager?.GetPlayerData(runner.LocalPlayer, runner);
+            bool showPanel = localData != null && localData.IsInMinigameReadyPhase && !_diceRolling;
+
+            if (_minigameReadyPanel.activeSelf != showPanel)
+            {
+                _minigameReadyPanel.SetActive(showPanel);
+            }
+
+            if (!showPanel)
+            {
+                return;
+            }
+
+            int readyCount = 0;
+            int totalPlayers = 0;
+            foreach (var player in runner.ActivePlayers)
+            {
+                var data = gameManager.GetPlayerData(player, runner);
+                if (data == null || !data.IsInMinigameReadyPhase)
+                {
+                    continue;
+                }
+
+                totalPlayers++;
+                if (data.IsReadyForMinigame)
+                {
+                    readyCount++;
+                }
+            }
+
+            if (_minigameReadyText != null)
+            {
+                _minigameReadyText.text = $"Waiting for the other players... {readyCount}/{Mathf.Max(1, totalPlayers)} ready";
+            }
+
+            if (_minigameReadyButton != null)
+            {
+                _minigameReadyButton.interactable = !localData.IsReadyForMinigame;
+            }
+        }
+
+        public void NotifyDiceRollCompleted()
+        {
+            _diceRolling = false;
+        }
+
+        private void OnMinigameReadyClicked()
+        {
+            var runner = Networking.Services.FusionNetworkService.LocalRunner
+                         ?? FindFirstObjectByType<NetworkRunner>();
+            if (runner == null)
+            {
+                Debug.LogError("[LobbyCanvas] NetworkRunner not found for minigame ready request.");
+                return;
+            }
+
+            var localData = Networking.Managers.GameManager.Instance?.GetPlayerData(runner.LocalPlayer, runner);
+            if (localData == null)
+            {
+                Debug.LogError("[LobbyCanvas] Local PlayerSessionData not found for minigame ready request.");
+                return;
+            }
+
+            localData.RPC_RequestMinigameReady();
+
+            if (_minigameReadyButton != null)
+            {
+                _minigameReadyButton.interactable = false;
             }
         }
 
@@ -740,6 +840,10 @@ namespace Networking.UI
             _modeButtons.SetActive(true);
             _lobbyPanel.SetActive(false);
             _gameLobbyPanel.SetActive(false);
+            if (_minigameReadyPanel != null)
+            {
+                _minigameReadyPanel.SetActive(false);
+            }
             if (_vuforiaPanel != null)
             {
                 _vuforiaPanel.SetActive(false);

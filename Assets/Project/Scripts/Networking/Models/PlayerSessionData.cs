@@ -67,6 +67,12 @@ namespace Networking.Models
         [Networked]
         public int CurrentRound { get; set; }
 
+        [Networked]
+        public bool IsInMinigameReadyPhase { get; set; }
+
+        [Networked]
+        public bool IsReadyForMinigame { get; set; }
+
         public FusionEvent OnPlayerDataSpawnedEvent;
 
         private ChangeDetector _changeDetector;
@@ -106,6 +112,40 @@ namespace Networking.Models
         {
             Debug.Log("[PlayerSessionData] RPC_LoadMinigameScene called. Loading minigame...");
             UnityEngine.SceneManagement.SceneManager.LoadScene("Minigame");
+        }
+
+        /// <summary>
+        /// RPC to load the lobby scene on all clients.
+        /// Called by host to return everyone from minigame to lobby.
+        /// </summary>
+        [Rpc(sources: RpcSources.StateAuthority, targets: RpcTargets.All, HostMode = RpcHostMode.SourceIsHostPlayer)]
+        public void RPC_LoadLobbyScene()
+        {
+            Debug.Log("[PlayerSessionData] RPC_LoadLobbyScene called. Returning to lobby...");
+            UnityEngine.SceneManagement.SceneManager.LoadScene("LobbyScene");
+        }
+
+        /// <summary>
+        /// Input-authority request to mark the local player ready for the next minigame.
+        /// Host validates and starts the minigame once every active player is ready.
+        /// </summary>
+        [Rpc(sources: RpcSources.InputAuthority, targets: RpcTargets.StateAuthority, HostMode = RpcHostMode.SourceIsHostPlayer)]
+        public void RPC_RequestMinigameReady()
+        {
+            if (!Object.HasStateAuthority)
+            {
+                return;
+            }
+
+            var runner = Runner;
+            var gameManager = Networking.Managers.GameManager.Instance;
+            if (runner == null || gameManager == null)
+            {
+                Debug.LogError("[PlayerSessionData] Missing dependencies for minigame ready request.");
+                return;
+            }
+
+            gameManager.HandlePlayerReadyForMinigame(Object.InputAuthority, runner);
         }
 
         /// <summary>

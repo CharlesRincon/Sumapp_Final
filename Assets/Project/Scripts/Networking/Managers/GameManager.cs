@@ -41,6 +41,9 @@ namespace Networking.Managers
             }
         }
 
+        public int StartingWater => _startingWater;
+        public int InitialBoardPosition => 0;
+
         [Header("Round Slice Config")]
         [SerializeField] private int _boardTileCount = 24;
         [SerializeField] private int _startingWater = 10;
@@ -51,6 +54,7 @@ namespace Networking.Managers
         [SerializeField] private int _catastrophicBasinPenalty = 5;
         [SerializeField] private int _maxRoundsToWin = 3;
         [SerializeField] private float _nextRoundDelaySeconds = 1.25f;
+        [SerializeField] private Networking.Models.BoardTileConfig _boardTileConfig;
 
         private Networking.Services.BasinService _basinService;
         private Networking.Services.TileService _tileService;
@@ -89,7 +93,7 @@ namespace Networking.Managers
             DontDestroyOnLoad(transform.parent);
 
             _basinService = new Networking.Services.BasinService();
-            _tileService = new Networking.Services.TileService();
+            _tileService = new Networking.Services.TileService(_boardTileConfig);
         }
 
         private void OnEnable()
@@ -219,6 +223,16 @@ namespace Networking.Managers
             return default;
         }
 
+        public Networking.Services.SliceTileType GetTileTypeAtPosition(int boardPosition)
+        {
+            if (_tileService == null)
+            {
+                return Networking.Services.SliceTileType.Start;
+            }
+
+            return _tileService.GetTileType(boardPosition);
+        }
+
         public void HandleValidatedTurnRoll(PlayerRef player, int diceRoll, NetworkRunner runner)
         {
             if (runner == null || !runner.IsServer || !_roundInProgress)
@@ -289,7 +303,7 @@ namespace Networking.Managers
             foreach (var player in runner.ActivePlayers)
             {
                 var data = GetPlayerData(player, runner);
-                if (data == null)
+                if (data == null || !runner.IsServer)
                 {
                     continue;
                 }
@@ -300,6 +314,29 @@ namespace Networking.Managers
                 data.HasRolledThisTurn = false;
                 data.IsInMinigameReadyPhase = false;
                 data.IsReadyForMinigame = false;
+
+                if (data.WaterAmount <= 0)
+                {
+                    data.WaterAmount = _startingWater;
+                }
+            }
+        }
+        public void InitializePreRoundPlayerState(NetworkRunner runner)
+        {
+            if (runner == null || !runner.IsServer)
+            {
+                return;
+            }
+
+            foreach (var player in runner.ActivePlayers)
+            {
+                var data = GetPlayerData(player, runner);
+                if (data == null)
+                {
+                    continue;
+                }
+
+                data.BoardPosition = InitialBoardPosition;
 
                 if (data.WaterAmount <= 0)
                 {
@@ -343,6 +380,13 @@ namespace Networking.Managers
             State = GameState.BasinCheck;
 
             var tileType = _tileService.GetTileType(playerData.BoardPosition);
+
+            if (tileType == Networking.Services.SliceTileType.Start)
+            {
+                // Start tile has no effect
+                return;
+            }
+
             int waterDelta;
             // int basinDelta;
 

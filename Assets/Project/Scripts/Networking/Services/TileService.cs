@@ -2,19 +2,30 @@ namespace Networking.Services
 {
     public enum SliceTileType
     {
+        Start,
         Hydric,
         Catastrophic
     }
 
     /// <summary>
-    /// Minimal tile resolver for the one-round vertical slice.
+    /// Tile resolver that reads from a BoardTileConfig asset.
+    /// Falls back to Hydric when no config is assigned.
     /// </summary>
     public class TileService
     {
+        private readonly Networking.Models.BoardTileConfig _config;
+
+        public TileService(Networking.Models.BoardTileConfig config)
+        {
+            _config = config;
+        }
+
         public SliceTileType GetTileType(int boardPosition)
         {
-            // Simple deterministic board layout for testability.
-            return boardPosition % 4 == 0 ? SliceTileType.Catastrophic : SliceTileType.Hydric;
+            if (_config == null)
+                return SliceTileType.Hydric;
+
+            return _config.GetTileType(boardPosition);
         }
 
         public int ResolveHydricWaterDelta(int hydricGain)

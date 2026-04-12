@@ -42,6 +42,8 @@ namespace Networking.UI
         [SerializeField] private TextMeshProUGUI _turnStatusText;
         [SerializeField] private GameObject _minigameReadyPanel;
         [SerializeField] private TextMeshProUGUI _minigameReadyText;
+        [SerializeField] private TextMeshProUGUI _minigameReadyTileText;
+        [SerializeField] private TextMeshProUGUI _minigameReadyWaterText;
         [SerializeField] private Button _minigameReadyButton;
         [Space]
         [SerializeField] private TurnOrderPanel _turnOrderPanel;
@@ -136,6 +138,8 @@ namespace Networking.UI
             {
                 _minigameReadyPanel.SetActive(false);
             }
+
+            InitializeMinigameReadyPlayerStatus();
         }
 
         private void OnDisable()
@@ -177,6 +181,7 @@ namespace Networking.UI
         private void Start()
         {
             Debug.Log("[LobbyCanvas] Start() called.");
+            InitializeMinigameReadyPlayerStatus();
         }
 
         private bool _sessionRestored;
@@ -185,6 +190,8 @@ namespace Networking.UI
         private void Update()
         {
             var runner = Networking.Services.FusionNetworkService.LocalRunner;
+
+            RefreshMinigameReadyPlayerStatus(runner);
 
             // On first frame with a runner, check if we're restoring an existing session
             if (!_sessionRestored && runner != null)
@@ -375,9 +382,55 @@ namespace Networking.UI
                 _minigameReadyText.text = $"Waiting for the other players... {readyCount}/{Mathf.Max(1, totalPlayers)} ready";
             }
 
+            if (_minigameReadyTileText != null)
+            {
+                var tileType = gameManager.GetTileTypeAtPosition(localData.BoardPosition);
+                _minigameReadyTileText.text = BuildMinigameTileText(localData.BoardPosition, tileType);
+            }
+
+            if (_minigameReadyWaterText != null)
+            {
+                _minigameReadyWaterText.text = BuildMinigameWaterText(localData.WaterAmount);
+            }
+
             if (_minigameReadyButton != null)
             {
                 _minigameReadyButton.interactable = !localData.IsReadyForMinigame;
+            }
+        }
+
+        private void InitializeMinigameReadyPlayerStatus()
+        {
+            RefreshMinigameReadyPlayerStatus(null);
+        }
+
+        private void RefreshMinigameReadyPlayerStatus(NetworkRunner runner)
+        {
+            var gameManager = Networking.Managers.GameManager.Instance;
+            var localData = runner != null && gameManager != null
+                ? gameManager.GetPlayerData(runner.LocalPlayer, runner)
+                : null;
+
+            int boardPosition = localData != null
+                ? localData.BoardPosition
+                : gameManager != null ? gameManager.InitialBoardPosition : 0;
+
+            int waterAmount = localData != null
+                ? localData.WaterAmount
+                : gameManager != null ? gameManager.StartingWater : 10;
+
+            var tileType = gameManager != null
+                ? gameManager.GetTileTypeAtPosition(boardPosition)
+                : Networking.Services.SliceTileType.Start;
+
+            if (_minigameReadyTileText != null)
+            {
+                _minigameReadyTileText.text = BuildMinigameTileText(boardPosition, tileType);
+            }
+
+            if (_minigameReadyWaterText != null)
+            {
+                _minigameReadyWaterText.text = BuildMinigameWaterText(waterAmount);
             }
         }
 
@@ -431,6 +484,17 @@ namespace Networking.UI
             return gameManager.CurrentRound > 0
                 ? $"<b><size=110%>Round {round}</size></b>"
                 : string.Empty;
+        }
+
+        private static string BuildMinigameTileText(int boardPosition, Networking.Services.SliceTileType tileType)
+        {
+            int displayTileNumber = boardPosition + 1;
+            return $"Current tile: {displayTileNumber} ({tileType})";
+        }
+
+        private static string BuildMinigameWaterText(int waterAmount)
+        {
+            return $"Current water: {waterAmount}";
         }
 
         //Called from button
@@ -574,6 +638,11 @@ namespace Networking.UI
             var gameManager = Networking.Managers.GameManager.Instance;
             if (gameManager != null)
             {
+                if (isHost)
+                {
+                    gameManager.InitializePreRoundPlayerState(runner);
+                }
+
                 gameManager.SetGameState(Networking.Managers.GameManager.GameState.RollOrder);
                 Debug.Log($"[LobbyCanvas] GameState set to RollOrder on {(isHost ? "HOST" : "CLIENT")}");
             }
@@ -844,6 +913,7 @@ namespace Networking.UI
             {
                 _minigameReadyPanel.SetActive(false);
             }
+            InitializeMinigameReadyPlayerStatus();
             if (_vuforiaPanel != null)
             {
                 _vuforiaPanel.SetActive(false);

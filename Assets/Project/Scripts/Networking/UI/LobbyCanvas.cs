@@ -33,13 +33,15 @@ namespace Networking.UI
         [SerializeField] private Button _startButton;
         [Space]
         [SerializeField] private GameObject _gameLobbyPanel;
-        [SerializeField] private TextMeshProUGUI _gameLobbyPlayerText;
-        [SerializeField] private TextMeshProUGUI _gameLobbyRoomName;
+        [SerializeField] private Image _gameLobbyCharacterImage;
         [SerializeField] private TextMeshProUGUI _diceResultText;
         [SerializeField] private Button _rollDiceButton;
         [SerializeField] private Button _loadGameButton;
         [SerializeField] private Button _openVuforiaButton;
+        [SerializeField] private TextMeshProUGUI _roundStatusText;
         [SerializeField] private TextMeshProUGUI _turnStatusText;
+        [SerializeField] private Transform _rivalPlayersContainer;
+        [SerializeField] private GameObject _rivalPlayerPrefab;
         [SerializeField] private GameObject _minigameReadyPanel;
         [SerializeField] private TextMeshProUGUI _minigameReadyText;
         [SerializeField] private TextMeshProUGUI _minigameReadyTileText;
@@ -73,6 +75,16 @@ namespace Networking.UI
         /// Get the character selection panel reference (for external testing/debugging).
         /// </summary>
         public CharacterSelectionPanel CharacterSelectionPanel => _characterSelectionPanel;
+
+        private readonly Dictionary<PlayerRef, RivalPlayerCardView> _rivalPlayerCards = new Dictionary<PlayerRef, RivalPlayerCardView>();
+
+        private sealed class RivalPlayerCardView
+        {
+            public GameObject Root;
+            public Image CharacterImage;
+            public TextMeshProUGUI WaterText;
+            public TextMeshProUGUI RivalNameText;
+        }
 
         private void OnEnable()
         {
@@ -308,6 +320,7 @@ namespace Networking.UI
             if (_gameLobbyPanel != null && _gameLobbyPanel.activeSelf && runner != null)
             {
                 RefreshTurnUI(runner);
+                RefreshRivalPlayersUI(runner);
                 RefreshMinigameReadyPanel(runner);
             }
         }
@@ -322,15 +335,17 @@ namespace Networking.UI
             var gm = Networking.Managers.GameManager.Instance;
             if (gm == null) return;
 
-            // Don't interfere during turn-order roll phase
-            if (gm.State == Networking.Managers.GameManager.GameState.RollOrder) return;
-
             var localData = gm.GetPlayerData(runner.LocalPlayer, runner);
             bool isMyTurn = localData != null && localData.IsActiveTurn;
 
             // Button: enabled only when it's our turn and we haven't started rolling
             if (_rollDiceButton != null)
                 _rollDiceButton.interactable = isMyTurn && !_diceRolling;
+
+            if (_roundStatusText != null)
+            {
+                _roundStatusText.text = BuildRoundStatusText(gm);
+            }
 
             // Turn indicator text (skip while DiceUI is animating)
             if (_turnStatusText != null && !_diceRolling)
@@ -464,13 +479,17 @@ namespace Networking.UI
             }
         }
 
+        private static string BuildRoundStatusText(Networking.Managers.GameManager gameManager)
+        {
+            int currentRound = Mathf.Max(1, gameManager.CurrentRound);
+            return $"Round {currentRound}/{gameManager.MaxRoundsToWin}";
+        }
+
         private static string BuildTurnStatusText(Networking.Managers.GameManager gameManager, NetworkRunner runner, bool isMyTurn)
         {
-            string round = gameManager.CurrentRound.ToString();
-
             if (isMyTurn)
             {
-                return $"<size=120%><b>Round {round}</b></size> - <color=#00FF00><b>It's your turn!</b></color> <size=95%>Roll the dice!</size>";
+                return $"<color=#00FF00><b>It's your turn!</b></color> <size=95%>Roll the dice!</size>";
             }
 
             var activePlayer = gameManager.GetActivePlayer(runner);
@@ -478,11 +497,11 @@ namespace Networking.UI
             {
                 var activeData = gameManager.GetPlayerData(activePlayer, runner);
                 string name = activeData != null ? (string)activeData.Nick : $"Player {activePlayer.PlayerId}";
-                return $"<b>Round {round}</b> - Waiting for <color=#FFFF00><b>{name}</b></color>...";
+                return $"<color=#FFFF00><b>Waiting for {name} to roll</b></color>";
             }
 
-            return gameManager.CurrentRound > 0
-                ? $"<b><size=110%>Round {round}</size></b>"
+            return gameManager.State == Networking.Managers.GameManager.GameState.RollOrder
+                ? "<color=#FFFF00><b>Waiting for players to roll</b></color>"
                 : string.Empty;
         }
 
@@ -494,7 +513,135 @@ namespace Networking.UI
 
         private static string BuildMinigameWaterText(int waterAmount)
         {
-            return $"Current water: {waterAmount}";
+            return $"Water:{waterAmount}";
+        }
+
+        private void RefreshRivalPlayersUI(NetworkRunner runner)
+        {
+            if (_rivalPlayersContainer == null || _rivalPlayerPrefab == null)
+            {
+                return;
+            }
+
+            var gameManager = Networking.Managers.GameManager.Instance;
+            if (gameManager == null)
+            {
+                return;
+            }
+
+            var rivalPlayers = runner.ActivePlayers
+                .Where(player => player != runner.LocalPlayer)
+                .Select(player => new
+                {
+                    Player = player,
+                    Data = gameManager.GetPlayerData(player, runner)
+                })
+                .Where(entry => entry.Data != null)
+                .OrderBy(entry => entry.Data.TurnOrder)
+                .ThenBy(entry => entry.Player.PlayerId)
+                .ToList();
+
+            var currentPlayers = new HashSet<PlayerRef>(rivalPlayers.Select(entry => entry.Player));
+            var stalePlayers = _rivalPlayerCards.Keys.Where(player => !currentPlayers.Contains(player)).ToList();
+            foreach (var player in stalePlayers)
+            {
+                if (_rivalPlayerCards.TryGetValue(player, out var staleView) && staleView.Root != null)
+                {
+                    Destroy(staleView.Root);
+                }
+
+                _rivalPlayerCards.Remove(player);
+            }
+
+            for (int i = 0; i < rivalPlayers.Count; i++)
+            {
+                var rival = rivalPlayers[i];
+                var cardView = GetOrCreateRivalPlayerCard(rival.Player);
+                if (cardView == null)
+                {
+                    continue;
+                }
+
+                var characterConfig = Networking.Managers.CharacterDatabase.Instance != null
+                    ? Networking.Managers.CharacterDatabase.Instance.GetCharacterById(rival.Data.SelectedCharacterId)
+                    : null;
+
+                if (cardView.CharacterImage != null)
+                {
+                    cardView.CharacterImage.sprite = characterConfig != null ? characterConfig.CharacterSprite : null;
+                    cardView.CharacterImage.enabled = cardView.CharacterImage.sprite != null;
+                }
+
+                if (cardView.WaterText != null)
+                {
+                    cardView.WaterText.text = $"Water: {rival.Data.WaterAmount}";
+                }
+
+                if (cardView.RivalNameText != null)
+                {
+                    cardView.RivalNameText.text = rival.Data.Nick.ToString();
+                }
+
+                cardView.Root.transform.SetSiblingIndex(i);
+            }
+        }
+
+        private RivalPlayerCardView GetOrCreateRivalPlayerCard(PlayerRef player)
+        {
+            if (_rivalPlayerCards.TryGetValue(player, out var existingView) && existingView.Root != null)
+            {
+                return existingView;
+            }
+
+            if (_rivalPlayersContainer == null || _rivalPlayerPrefab == null)
+            {
+                return null;
+            }
+
+            var instance = Instantiate(_rivalPlayerPrefab, _rivalPlayersContainer);
+            instance.name = $"RivalPlayer_{player.PlayerId}";
+
+            var createdView = new RivalPlayerCardView
+            {
+                Root = instance,
+                CharacterImage = FindRequiredComponent<Image>(instance.transform, "CharacterImage"),
+                WaterText = FindRequiredComponent<TextMeshProUGUI>(instance.transform, "WaterText"),
+                RivalNameText = FindRequiredComponent<TextMeshProUGUI>(instance.transform, "RivalName")
+            };
+
+            _rivalPlayerCards[player] = createdView;
+            return createdView;
+        }
+
+        private static T FindRequiredComponent<T>(Transform root, string childName) where T : Component
+        {
+            var child = FindChildByName(root, childName);
+            if (child == null)
+            {
+                Debug.LogWarning($"[LobbyCanvas] Could not find child '{childName}' under '{root.name}'.");
+                return null;
+            }
+
+            var component = child.GetComponent<T>();
+            if (component == null)
+            {
+                Debug.LogWarning($"[LobbyCanvas] Child '{childName}' under '{root.name}' is missing component '{typeof(T).Name}'.");
+            }
+
+            return component;
+        }
+
+        private static Transform FindChildByName(Transform root, string childName)
+        {
+            foreach (var child in root.GetComponentsInChildren<Transform>(true))
+            {
+                if (child.name == childName)
+                {
+                    return child;
+                }
+            }
+
+            return null;
         }
 
         //Called from button
@@ -674,11 +821,11 @@ namespace Networking.UI
         }
 
         /// <summary>
-        /// Update game lobby with only the local player's information (name and selected character).
+        /// Update game lobby with only the local player's selected character sprite.
         /// </summary>
         public void UpdateGameLobbyList(PlayerRef playerRef, NetworkRunner runner)
         {
-            string playerInfo = "Not Ready";
+            Sprite selectedCharacterSprite = null;
 
             if (runner != null)
             {
@@ -686,9 +833,6 @@ namespace Networking.UI
 
                 if (localPlayerData != null)
                 {
-                    string characterName = "";
-
-                    // Get selected character name
                     Debug.Log($"[LobbyCanvas] Local player SelectedCharacterId: {localPlayerData.SelectedCharacterId}");
 
                     if (localPlayerData.SelectedCharacterId > 0)
@@ -696,8 +840,8 @@ namespace Networking.UI
                         var charConfig = Networking.Managers.CharacterDatabase.Instance.GetCharacterById(localPlayerData.SelectedCharacterId);
                         if (charConfig != null)
                         {
-                            characterName = $" - {charConfig.CharacterName}";
-                            Debug.Log($"[LobbyCanvas] Character found: {charConfig.CharacterName}");
+                            selectedCharacterSprite = charConfig.CharacterSprite;
+                            Debug.Log($"[LobbyCanvas] Character sprite found for: {charConfig.CharacterName}");
                         }
                         else
                         {
@@ -708,8 +852,6 @@ namespace Networking.UI
                     {
                         // Normal during early sync before character selection completes.
                     }
-
-                    playerInfo = $"{localPlayerData.Nick} (You){characterName}";
                 }
                 else
                 {
@@ -717,11 +859,16 @@ namespace Networking.UI
                 }
             }
 
-            if (_gameLobbyPlayerText != null)
-                _gameLobbyPlayerText.text = playerInfo;
+            if (_gameLobbyCharacterImage != null)
+            {
+                _gameLobbyCharacterImage.sprite = selectedCharacterSprite;
+                _gameLobbyCharacterImage.enabled = selectedCharacterSprite != null;
+            }
 
-            if (_gameLobbyRoomName != null && runner != null)
-                _gameLobbyRoomName.text = $"Room: {runner.SessionInfo.Name}";
+            if (runner != null)
+            {
+                RefreshRivalPlayersUI(runner);
+            }
 
             // Enable dice button when game lobby is ready
             EnableDiceButton();

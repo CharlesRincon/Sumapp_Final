@@ -1,5 +1,4 @@
 using UnityEngine;
-using UnityEngine.UI;
 using TMPro;
 using Fusion;
 using FusionUtilsEvents;
@@ -31,9 +30,6 @@ namespace Networking.UI
         private Transform _leaderboardContainer;
 
         [SerializeField]
-        private Button _returnLobbyButton;
-
-        [SerializeField]
         private FusionEvent OnGameEndEvent;
 
         private Networking.Managers.MinigameManager _minigameManager;
@@ -55,12 +51,6 @@ namespace Networking.UI
             {
                 OnGameEndEvent.RegisterResponse(OnGameEnd);
             }
-
-            // Wire return lobby button
-            if (_returnLobbyButton != null)
-            {
-                _returnLobbyButton.onClick.AddListener(ReturnToLobby);
-            }
         }
 
         private void OnDisable()
@@ -68,11 +58,6 @@ namespace Networking.UI
             if (OnGameEndEvent != null)
             {
                 OnGameEndEvent.RemoveResponse(OnGameEnd);
-            }
-
-            if (_returnLobbyButton != null)
-            {
-                _returnLobbyButton.onClick.RemoveListener(ReturnToLobby);
             }
         }
 
@@ -271,13 +256,6 @@ namespace Networking.UI
                 DisplayLeaderboard();
             }
 
-            // Keep return button visible
-            if (_returnLobbyButton != null)
-            {
-                _returnLobbyButton.gameObject.SetActive(true);
-                Debug.Log("[MinigameUI] Return button visible.");
-            }
-
             Debug.Log("[MinigameUI] Game end sequence complete.");
         }
 
@@ -328,17 +306,6 @@ namespace Networking.UI
             }
 
             Debug.Log("[MinigameUI] Leaderboard populated successfully.");
-        }
-
-        /// <summary>
-        /// Return to lobby when button is clicked.
-        /// </summary>
-        public void ReturnToLobby()
-        {
-            Debug.Log("[MinigameUI] Returning to lobby...");
-            
-            // Load lobby scene - NetworkRunner will handle persistence
-            UnityEngine.SceneManagement.SceneManager.LoadScene("LobbyScene");
         }
     }
 }

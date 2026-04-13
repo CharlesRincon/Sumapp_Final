@@ -41,6 +41,7 @@ namespace Networking.Managers
             }
         }
 
+        public int MaxRoundsToWin => _maxRoundsToWin;
         public int StartingWater => _startingWater;
         public int InitialBoardPosition => 0;
 
@@ -312,6 +313,7 @@ namespace Networking.Managers
                 data.LastDiceRollTime = 0f;
                 data.IsActiveTurn = false;
                 data.HasRolledThisTurn = false;
+                data.HasScannedARThisTurn = false;
                 data.IsInMinigameReadyPhase = false;
                 data.IsReadyForMinigame = false;
 
@@ -354,6 +356,7 @@ namespace Networking.Managers
                 {
                     data.IsActiveTurn = false;
                     data.HasRolledThisTurn = false;
+                    data.HasScannedARThisTurn = false;
                 }
             }
 
@@ -706,6 +709,35 @@ namespace Networking.Managers
         /// <summary>
         /// Check if a specific character is available.
         /// </summary>
+        public void HandleARWaterBonus(PlayerRef player, NetworkRunner runner, int waterAmount)
+        {
+            if (runner == null || !runner.IsServer) return;
+
+            if (waterAmount <= 0)
+            {
+                Debug.LogWarning($"[GameManager] AR water bonus rejected: invalid amount {waterAmount}");
+                return;
+            }
+
+            var playerData = GetPlayerData(player, runner);
+            if (playerData == null)
+            {
+                Debug.LogWarning($"[GameManager] AR water bonus rejected: no data for player {player.PlayerId}");
+                return;
+            }
+
+            if (playerData.HasScannedARThisTurn)
+            {
+                Debug.Log($"[GameManager] AR water bonus rejected: player {player.PlayerId} already scanned this turn.");
+                return;
+            }
+
+            playerData.HasScannedARThisTurn = true;
+            playerData.WaterAmount = playerData.WaterAmount + waterAmount;
+            Networking.Events.NetworkEventDefinitions.Instance?.OnPlayerWaterChangedEvent?.Raise(player, runner);
+            Debug.Log($"[GameManager] AR water bonus: player {player.PlayerId} +{waterAmount} water → {playerData.WaterAmount}");
+        }
+
         public bool IsCharacterAvailable(int characterId, NetworkRunner runner)
         {
             var selectedIds = GetSelectedCharacterIds(runner);

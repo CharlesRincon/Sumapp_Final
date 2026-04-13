@@ -73,6 +73,9 @@ namespace Networking.Models
         [Networked]
         public bool IsReadyForMinigame { get; set; }
 
+        [Networked]
+        public bool HasScannedARThisTurn { get; set; }
+
         public FusionEvent OnPlayerDataSpawnedEvent;
 
         private ChangeDetector _changeDetector;
@@ -159,6 +162,26 @@ namespace Networking.Models
             Debug.Log($"[PlayerSessionData.RPC_IncrementMinigameClickCount] Host executing for player {Object.InputAuthority.PlayerId}. Before: {MinigameClickCount}");
             MinigameClickCount++;
             Debug.Log($"[PlayerSessionData.RPC_IncrementMinigameClickCount] After: {MinigameClickCount}");
+        }
+
+        /// <summary>
+        /// Client requests a water bonus after scanning a Vuforia image target.
+        /// Host validates and applies the delta.
+        /// </summary>
+        [Rpc(sources: RpcSources.InputAuthority, targets: RpcTargets.StateAuthority, HostMode = RpcHostMode.SourceIsHostPlayer)]
+        public void RPC_RequestARWaterBonus(int waterAmount)
+        {
+            if (!Object.HasStateAuthority) return;
+
+            var runner = Runner;
+            var gameManager = Networking.Managers.GameManager.Instance;
+            if (runner == null || gameManager == null)
+            {
+                Debug.LogError("[PlayerSessionData] Missing dependencies for AR water bonus request.");
+                return;
+            }
+
+            gameManager.HandleARWaterBonus(Object.InputAuthority, runner, waterAmount);
         }
 
         /// <summary>

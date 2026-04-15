@@ -538,6 +538,13 @@ namespace Networking.Managers
             if (_currentRound >= Mathf.Max(1, _maxRoundsToWin))
             {
                 SetGameState(GameState.Victory);
+
+                foreach (var p in runner.ActivePlayers)
+                {
+                    var d = GetPlayerData(p, runner);
+                    if (d != null) d.IsGameOver = true;
+                }
+
                 Debug.Log($"[GameManager] Victory reached after round {_currentRound} minigame.");
                 return;
             }

@@ -76,6 +76,9 @@ namespace Networking.Models
         [Networked]
         public bool HasScannedARThisTurn { get; set; }
 
+        [Networked]
+        public bool IsGameOver { get; set; }
+
         public FusionEvent OnPlayerDataSpawnedEvent;
 
         private ChangeDetector _changeDetector;

@@ -50,6 +50,11 @@ namespace Networking.UI
         [Space]
         [SerializeField] private TurnOrderPanel _turnOrderPanel;
         [Space]
+        [SerializeField] private GameObject _victoryPanel;
+        [SerializeField] private Transform _victoryRankingContainer;
+        [SerializeField] private GameObject _victoryRankingEntryPrefab;
+        [SerializeField] private Button _victoryReturnButton;
+        [Space]
         [SerializeField] private GameObject _vuforiaPanel;
         [SerializeField] private GameObject _backgroundImage;
         [SerializeField] private GameObject _vuforiaARCamera;
@@ -146,9 +151,19 @@ namespace Networking.UI
                 _minigameReadyButton.onClick.AddListener(OnMinigameReadyClicked);
             }
 
+            if (_victoryReturnButton != null)
+            {
+                _victoryReturnButton.onClick.AddListener(OnVictoryReturnClicked);
+            }
+
             if (_minigameReadyPanel != null)
             {
                 _minigameReadyPanel.SetActive(false);
+            }
+
+            if (_victoryPanel != null)
+            {
+                _victoryPanel.SetActive(false);
             }
 
             InitializeMinigameReadyPlayerStatus();
@@ -187,6 +202,11 @@ namespace Networking.UI
             if (_minigameReadyButton != null)
             {
                 _minigameReadyButton.onClick.RemoveListener(OnMinigameReadyClicked);
+            }
+
+            if (_victoryReturnButton != null)
+            {
+                _victoryReturnButton.onClick.RemoveListener(OnVictoryReturnClicked);
             }
         }
 
@@ -322,6 +342,7 @@ namespace Networking.UI
                 RefreshTurnUI(runner);
                 RefreshRivalPlayersUI(runner);
                 RefreshMinigameReadyPanel(runner);
+                RefreshVictoryPanel(runner);
             }
         }
 
@@ -447,6 +468,67 @@ namespace Networking.UI
             {
                 _minigameReadyWaterText.text = BuildMinigameWaterText(waterAmount);
             }
+        }
+
+        private bool _victoryShown;
+
+        private void RefreshVictoryPanel(NetworkRunner runner)
+        {
+            if (_victoryPanel == null || _victoryShown) return;
+
+            var gm = Networking.Managers.GameManager.Instance;
+            if (gm == null) return;
+
+            var localData = gm.GetPlayerData(runner.LocalPlayer, runner);
+            if (localData == null || !localData.IsGameOver) return;
+
+            _victoryShown = true;
+
+            // Hide other panels
+            if (_minigameReadyPanel != null) _minigameReadyPanel.SetActive(false);
+            if (_rollDiceButton != null) _rollDiceButton.interactable = false;
+            if (_openVuforiaButton != null) _openVuforiaButton.interactable = false;
+
+            PopulateVictoryRanking(runner, gm);
+            _victoryPanel.SetActive(true);
+            Debug.Log("[LobbyCanvas] Victory panel shown.");
+        }
+
+        private void PopulateVictoryRanking(NetworkRunner runner, Networking.Managers.GameManager gm)
+        {
+            if (_victoryRankingContainer == null || _victoryRankingEntryPrefab == null) return;
+
+            // Clear previous entries
+            foreach (Transform child in _victoryRankingContainer)
+            {
+                Destroy(child.gameObject);
+            }
+
+            // Gather all players sorted by water descending
+            var ranked = runner.ActivePlayers
+                .Select(player => gm.GetPlayerData(player, runner))
+                .Where(data => data != null)
+                .OrderByDescending(data => data.WaterAmount)
+                .ToList();
+
+            for (int i = 0; i < ranked.Count; i++)
+            {
+                var data = ranked[i];
+                var entry = Instantiate(_victoryRankingEntryPrefab, _victoryRankingContainer);
+                entry.name = $"Rank_{i + 1}";
+
+                var label = entry.GetComponent<TextMeshProUGUI>();
+                if (label != null)
+                {
+                    label.text = $"#{i + 1}. {data.Nick} — Water: {data.WaterAmount}";
+                }
+            }
+        }
+
+        private void OnVictoryReturnClicked()
+        {
+            Debug.Log("[LobbyCanvas] Victory return button clicked — ending session.");
+            Networking.Managers.GameManager.Instance?.ExitSession();
         }
 
         public void NotifyDiceRollCompleted()
@@ -1060,6 +1142,11 @@ namespace Networking.UI
             {
                 _minigameReadyPanel.SetActive(false);
             }
+            if (_victoryPanel != null)
+            {
+                _victoryPanel.SetActive(false);
+            }
+            _victoryShown = false;
             InitializeMinigameReadyPlayerStatus();
             if (_vuforiaPanel != null)
             {

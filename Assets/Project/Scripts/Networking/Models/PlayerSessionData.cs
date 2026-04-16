@@ -79,6 +79,9 @@ namespace Networking.Models
         [Networked]
         public bool IsGameOver { get; set; }
 
+        [Networked]
+        public bool IsDefeat { get; set; }
+
         public FusionEvent OnPlayerDataSpawnedEvent;
 
         private ChangeDetector _changeDetector;

@@ -43,6 +43,7 @@ namespace Networking.Managers
 
         public int MaxRoundsToWin => _maxRoundsToWin;
         public int StartingWater => _startingWater;
+        public int StartingBasinHealth => _startingBasinHealth;
         public int InitialBoardPosition => 0;
 
         [Header("Round Slice Config")]
@@ -330,6 +331,12 @@ namespace Networking.Managers
                 return;
             }
 
+            if (_currentRound <= 0)
+            {
+                _basinService.Initialize(_startingBasinHealth);
+                SyncBasinHealthToAllPlayers(runner);
+            }
+
             foreach (var player in runner.ActivePlayers)
             {
                 var data = GetPlayerData(player, runner);
@@ -391,30 +398,41 @@ namespace Networking.Managers
             }
 
             int waterDelta;
-            // int basinDelta;
+            int basinDelta;
 
             if (tileType == Networking.Services.SliceTileType.Hydric)
             {
                 waterDelta = _tileService.ResolveHydricWaterDelta(_hydricWaterGain);
-                // basinDelta = _tileService.ResolveHydricBasinDelta(_hydricBasinBonus);
+                basinDelta = _tileService.ResolveHydricBasinDelta(_hydricBasinBonus);
             }
             else
             {
                 waterDelta = _tileService.ResolveCatastrophicWaterDelta(_catastrophicWaterPenalty);
-                // basinDelta = _tileService.ResolveCatastrophicBasinDelta(_catastrophicBasinPenalty);
+                basinDelta = _tileService.ResolveCatastrophicBasinDelta(_catastrophicBasinPenalty);
             }
 
             playerData.WaterAmount = Mathf.Max(0, playerData.WaterAmount + waterDelta);
             Networking.Events.NetworkEventDefinitions.Instance?.OnPlayerWaterChangedEvent?.Raise(playerData.Object.InputAuthority, runner);
 
-            // _basinService.ApplyDelta(basinDelta);
-            // SyncBasinHealthToAllPlayers(runner);
-            // Networking.Events.NetworkEventDefinitions.Instance?.OnBasinStateChangedEvent?.Raise(playerData.Object.InputAuthority, runner);
+            _basinService.ApplyDelta(basinDelta);
+            SyncBasinHealthToAllPlayers(runner);
 
             if (_basinService.IsDefeated)
             {
                 SetGameState(GameState.Defeat);
                 _roundInProgress = false;
+
+                foreach (var p in runner.ActivePlayers)
+                {
+                    var d = GetPlayerData(p, runner);
+                    if (d != null)
+                    {
+                        d.IsGameOver = true;
+                        d.IsDefeat = true;
+                    }
+                }
+
+                Debug.Log("[GameManager] Basin defeated! All players lose.");
             }
         }
 

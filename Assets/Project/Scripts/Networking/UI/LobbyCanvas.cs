@@ -40,6 +40,7 @@ namespace Networking.UI
         [SerializeField] private Button _openVuforiaButton;
         [SerializeField] private TextMeshProUGUI _roundStatusText;
         [SerializeField] private TextMeshProUGUI _turnStatusText;
+        [SerializeField] private Image _basinHealthImage;
         [SerializeField] private Transform _rivalPlayersContainer;
         [SerializeField] private GameObject _rivalPlayerPrefab;
         [SerializeField] private GameObject _minigameReadyPanel;
@@ -342,6 +343,7 @@ namespace Networking.UI
                 RefreshTurnUI(runner);
                 RefreshRivalPlayersUI(runner);
                 RefreshMinigameReadyPanel(runner);
+                RefreshBasinHealthImage(runner);
                 RefreshVictoryPanel(runner);
             }
         }
@@ -489,9 +491,17 @@ namespace Networking.UI
             if (_rollDiceButton != null) _rollDiceButton.interactable = false;
             if (_openVuforiaButton != null) _openVuforiaButton.interactable = false;
 
-            PopulateVictoryRanking(runner, gm);
+            if (localData.IsDefeat)
+            {
+                PopulateDefeatMessage();
+            }
+            else
+            {
+                PopulateVictoryRanking(runner, gm);
+            }
+
             _victoryPanel.SetActive(true);
-            Debug.Log("[LobbyCanvas] Victory panel shown.");
+            Debug.Log($"[LobbyCanvas] {(localData.IsDefeat ? "Defeat" : "Victory")} panel shown.");
         }
 
         private void PopulateVictoryRanking(NetworkRunner runner, Networking.Managers.GameManager gm)
@@ -523,6 +533,54 @@ namespace Networking.UI
                     label.text = $"#{i + 1}. {data.Nick} — Water: {data.WaterAmount}";
                 }
             }
+        }
+
+        private void PopulateDefeatMessage()
+        {
+            if (_victoryRankingContainer == null || _victoryRankingEntryPrefab == null) return;
+
+            foreach (Transform child in _victoryRankingContainer)
+            {
+                Destroy(child.gameObject);
+            }
+
+            var entry = Instantiate(_victoryRankingEntryPrefab, _victoryRankingContainer);
+            entry.name = "DefeatMessage";
+
+            var label = entry.GetComponent<TextMeshProUGUI>();
+            if (label != null)
+            {
+                label.text = "<color=#FF4444><b>Everyone Lost!</b></color>\nThe basin has been destroyed.";
+            }
+        }
+
+        private void RefreshBasinHealthImage(NetworkRunner runner)
+        {
+            if (_basinHealthImage == null) return;
+
+            var gm = Networking.Managers.GameManager.Instance;
+            if (gm == null) return;
+
+            var localData = gm.GetPlayerData(runner.LocalPlayer, runner);
+            if (localData == null) return;
+
+            int basinHealth = localData.BasinHealth;
+            if (localData.CurrentRound <= 0 && basinHealth <= 0)
+            {
+                basinHealth = gm.StartingBasinHealth;
+            }
+
+            float percentage = (float)basinHealth / Mathf.Max(1, gm.StartingBasinHealth) * 100f;
+
+            Color color;
+            if (percentage > 80f)
+                color = Color.green;
+            else if (percentage > 20f)
+                color = Color.yellow;
+            else
+                color = Color.red;
+
+            _basinHealthImage.color = color;
         }
 
         private void OnVictoryReturnClicked()

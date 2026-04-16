@@ -147,6 +147,8 @@ namespace Networking.Managers
 
         [SerializeField] private float _leaderboardDisplaySeconds = 5f;
 
+        [SerializeField] private int _winnerWaterReward = 3;
+
         /// <summary>
         /// End the game and notify all clients.
         /// After showing leaderboard, auto-return everyone to lobby.
@@ -154,8 +156,27 @@ namespace Networking.Managers
         private void EndGame()
         {
             Debug.Log("[MinigameManager] Game ended on host. Broadcasting to all clients...");
+            RewardMinigameWinner();
             RPC_NotifyGameEnd();
             StartCoroutine(ReturnToLobbyAfterDelay());
+        }
+
+        private void RewardMinigameWinner()
+        {
+            if (!Object.HasStateAuthority) return;
+
+            var leaderboard = GetLeaderboard();
+            if (leaderboard.Count == 0) return;
+
+            var winner = leaderboard[0];
+            if (winner.clicks <= 0) return;
+
+            var winnerData = GameManager.Instance.GetPlayerData(winner.player, _runner);
+            if (winnerData != null)
+            {
+                winnerData.WaterAmount += _winnerWaterReward;
+                Debug.Log($"[MinigameManager] Winner {winner.name} awarded +{_winnerWaterReward} water → {winnerData.WaterAmount}");
+            }
         }
 
         private System.Collections.IEnumerator ReturnToLobbyAfterDelay()

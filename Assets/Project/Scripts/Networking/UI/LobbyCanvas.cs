@@ -36,7 +36,6 @@ namespace Networking.UI
         [SerializeField] private Image _gameLobbyCharacterImage;
         [SerializeField] private TextMeshProUGUI _diceResultText;
         [SerializeField] private Button _rollDiceButton;
-        [SerializeField] private Button _loadGameButton;
         [SerializeField] private Button _openVuforiaButton;
         [SerializeField] private TextMeshProUGUI _roundStatusText;
         [SerializeField] private TextMeshProUGUI _turnStatusText;
@@ -61,6 +60,9 @@ namespace Networking.UI
         [SerializeField] private GameObject _vuforiaARCamera;
         [Space]
         [SerializeField] private GameObject _modeButtons;
+        [SerializeField] private GameObject _roomInputsPanel;
+        [SerializeField] private TextMeshProUGUI _roomActionText;
+        [SerializeField] private TextMeshProUGUI _roomActionButtonText;
         [SerializeField] private TMP_InputField _nickname;
         [SerializeField] private TMP_InputField _room;
 
@@ -264,13 +266,6 @@ namespace Networking.UI
                         _gameLobbyPanel.SetActive(true);
                         UpdateGameLobbyList(PlayerRef.None, runner);
                         Debug.Log("[LobbyCanvas] Game lobby panel shown (restored session).");
-                    }
-
-                    // Show load game button only for host
-                    if (_loadGameButton != null)
-                    {
-                        bool isHost = runner.IsServer;
-                        _loadGameButton.gameObject.SetActive(isHost);
                     }
 
                     // Host auto-starts the next round
@@ -653,7 +648,7 @@ namespace Networking.UI
 
         private static string BuildMinigameWaterText(int waterAmount)
         {
-            return $"Water:{waterAmount}";
+            return $"{waterAmount}";
         }
 
         private void RefreshRivalPlayersUI(NetworkRunner runner)
@@ -714,7 +709,7 @@ namespace Networking.UI
 
                 if (cardView.WaterText != null)
                 {
-                    cardView.WaterText.text = $"Water: {rival.Data.WaterAmount}";
+                    cardView.WaterText.text = $"{rival.Data.WaterAmount}";
                 }
 
                 if (cardView.RivalNameText != null)
@@ -787,10 +782,36 @@ namespace Networking.UI
         //Called from button
         public void SetGameMode(int gameMode)
         {
-            Networking.Managers.GameManager.Instance.SetGameState(Networking.Managers.GameManager.GameState.Lobby);
+            if (Networking.Managers.GameManager.Instance != null)
+            {
+                Networking.Managers.GameManager.Instance.SetGameState(Networking.Managers.GameManager.GameState.Lobby);
+            }
+
             _gameMode = (GameMode)gameMode;
-            _modeButtons.SetActive(false);
-            _nickname.transform.parent.gameObject.SetActive(true);
+            if (_modeButtons != null)
+            {
+                _modeButtons.SetActive(false);
+            }
+
+            if (_roomActionText != null)
+            {
+                _roomActionText.text = _gameMode == GameMode.Client ? "Entrar a Sala" : "Crear Sala";
+            }
+
+            if (_roomActionButtonText != null)
+            {
+                _roomActionButtonText.text = _gameMode == GameMode.Client ? "Entrar" : "Crear";
+            }
+
+            var roomInputsRoot = GetRoomInputsRoot();
+            if (roomInputsRoot != null)
+            {
+                roomInputsRoot.SetActive(true);
+            }
+            else
+            {
+                Debug.LogWarning("[LobbyCanvas] Room inputs panel is not assigned and nickname parent could not be resolved.");
+            }
         }
 
         //Called from button
@@ -800,7 +821,12 @@ namespace Networking.UI
             Nickname = _nickname.text;
             PlayerPrefs.SetString("Nick", Nickname);
             Launcher.Launch(_gameMode, _room.text);
-            _nickname.transform.parent.gameObject.SetActive(false);
+
+            var roomInputsRoot = GetRoomInputsRoot();
+            if (roomInputsRoot != null)
+            {
+                roomInputsRoot.SetActive(false);
+            }
         }
 
         //Called from button
@@ -897,14 +923,6 @@ namespace Networking.UI
             else
             {
                 Debug.LogError("[LobbyCanvas] Game lobby panel not assigned in inspector!");
-            }
-
-            // Only host can load game
-            if (_loadGameButton != null)
-            {
-                bool isHostCheck = runner != null && runner.IsServer;
-                _loadGameButton.gameObject.SetActive(isHostCheck);
-                Debug.Log($"[LobbyCanvas] Load Game button active for host: {isHostCheck}");
             }
 
             // Start turn order initialization (Roll for turn order - Round 1 only)
@@ -1194,6 +1212,19 @@ namespace Networking.UI
 
             _initPanel.SetActive(true);
             _modeButtons.SetActive(true);
+            var roomInputsRoot = GetRoomInputsRoot();
+            if (roomInputsRoot != null)
+            {
+                roomInputsRoot.SetActive(false);
+            }
+            if (_roomActionText != null)
+            {
+                _roomActionText.text = string.Empty;
+            }
+            if (_roomActionButtonText != null)
+            {
+                _roomActionButtonText.text = string.Empty;
+            }
             _lobbyPanel.SetActive(false);
             _gameLobbyPanel.SetActive(false);
             if (_minigameReadyPanel != null)
@@ -1225,6 +1256,21 @@ namespace Networking.UI
         {
             _initPanel.SetActive(false);
             _lobbyPanel.SetActive(true);
+        }
+
+        private GameObject GetRoomInputsRoot()
+        {
+            if (_roomInputsPanel != null)
+            {
+                return _roomInputsPanel;
+            }
+
+            if (_nickname != null && _nickname.transform.parent != null)
+            {
+                return _nickname.transform.parent.gameObject;
+            }
+
+            return null;
         }
 
         public void UpdateLobbyList(PlayerRef playerRef, NetworkRunner runner)

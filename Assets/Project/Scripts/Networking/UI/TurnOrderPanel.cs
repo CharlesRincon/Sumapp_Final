@@ -75,7 +75,7 @@ namespace Networking.UI
                 _panelGameObject.SetActive(true);
 
             if (_instructionText != null)
-                _instructionText.text = "Roll your dice!";
+                _instructionText.text = "¡Tira el dado!";
             if (_rollButton != null)
             {
                 _rollButton.gameObject.SetActive(true);
@@ -165,7 +165,7 @@ namespace Networking.UI
             }
 
             if (_instructionText != null)
-                _instructionText.text = "Waiting for other players...";
+                _instructionText.text = "Esperando...";
         }
 
         /// <summary>
@@ -222,7 +222,7 @@ namespace Networking.UI
             Debug.Log("[TurnOrderPanel] All players have rolled — showing results!");
 
             if (_instructionText != null)
-                _instructionText.text = "Turn Order Determined!";
+                _instructionText.text = "¡Resultados!";
             if (_rollButton != null)
                 _rollButton.gameObject.SetActive(false);
             if (_playerRollText != null)

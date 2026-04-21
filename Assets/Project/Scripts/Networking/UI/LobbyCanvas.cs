@@ -412,7 +412,7 @@ namespace Networking.UI
 
             if (_minigameReadyText != null)
             {
-                _minigameReadyText.text = $"Waiting for the other players... {readyCount}/{Mathf.Max(1, totalPlayers)} ready";
+                _minigameReadyText.text = $"Esperando a los demás jugadores... {readyCount}/{Mathf.Max(1, totalPlayers)} listos";
             }
 
             if (_minigameReadyTileText != null)

@@ -11,6 +11,7 @@ namespace Networking.UI
     {
         [SerializeField] private TextMeshProUGUI _activeTurnText;
         [SerializeField] private TextMeshProUGUI _localWaterText;
+        [SerializeField] private TextMeshProUGUI _localMoneyText;
         [SerializeField] private TextMeshProUGUI _basinText;
 
         private NetworkRunner _runner;
@@ -58,6 +59,11 @@ namespace Networking.UI
                 if (_localWaterText != null)
                 {
                     _localWaterText.text = $"Water: {localData.WaterAmount}";
+                }
+
+                if (_localMoneyText != null)
+                {
+                    _localMoneyText.text = $"Money: {localData.MoneyAmount}";
                 }
 
                 if (_basinText != null)

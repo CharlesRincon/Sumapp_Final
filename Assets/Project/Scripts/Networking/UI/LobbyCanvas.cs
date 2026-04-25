@@ -35,6 +35,9 @@ namespace Networking.UI
         [SerializeField] private GameObject _gameLobbyPanel;
         [SerializeField] private Image _gameLobbyCharacterImage;
         [SerializeField] private TextMeshProUGUI _diceResultText;
+        [SerializeField] private TextMeshProUGUI _tileText;
+        [SerializeField] private TextMeshProUGUI _waterText;
+        [SerializeField] private TextMeshProUGUI _moneyText;
         [SerializeField] private Button _rollDiceButton;
         [SerializeField] private Button _openVuforiaButton;
         [SerializeField] private TextMeshProUGUI _roundStatusText;
@@ -42,10 +45,13 @@ namespace Networking.UI
         [SerializeField] private Image _basinHealthImage;
         [SerializeField] private Transform _rivalPlayersContainer;
         [SerializeField] private GameObject _rivalPlayerPrefab;
+        [SerializeField] private Button _toggleActiveProjectsButton;
+        [SerializeField] private GameObject _activeProjectsPanel;
+        [SerializeField] private Transform _projectContainer;
+        [SerializeField] private GameObject _projectEntryPrefab;
+        [Space]
         [SerializeField] private GameObject _minigameReadyPanel;
         [SerializeField] private TextMeshProUGUI _minigameReadyText;
-        [SerializeField] private TextMeshProUGUI _minigameReadyTileText;
-        [SerializeField] private TextMeshProUGUI _minigameReadyWaterText;
         [SerializeField] private Button _minigameReadyButton;
         [Space]
         [SerializeField] private TurnOrderPanel _turnOrderPanel;
@@ -56,6 +62,11 @@ namespace Networking.UI
         [SerializeField] private Button _victoryReturnButton;
         [Space]
         [SerializeField] private GameObject _vuforiaPanel;
+        [SerializeField] private GameObject _projectDecisionPanel;
+        [SerializeField] private TextMeshProUGUI _projectDecisionTitleText;
+        [SerializeField] private TextMeshProUGUI _projectDecisionBodyText;
+        [SerializeField] private Button _projectBuyButton;
+        [SerializeField] private Button _projectDeclineButton;
         [SerializeField] private GameObject _backgroundImage;
         [SerializeField] private GameObject _vuforiaARCamera;
         [Space]
@@ -85,12 +96,14 @@ namespace Networking.UI
         public CharacterSelectionPanel CharacterSelectionPanel => _characterSelectionPanel;
 
         private readonly Dictionary<PlayerRef, RivalPlayerCardView> _rivalPlayerCards = new Dictionary<PlayerRef, RivalPlayerCardView>();
+        private bool _projectFlowVisible;
 
         private sealed class RivalPlayerCardView
         {
             public GameObject Root;
             public Image CharacterImage;
             public TextMeshProUGUI WaterText;
+            public TextMeshProUGUI MoneyText;
             public TextMeshProUGUI RivalNameText;
         }
 
@@ -149,6 +162,11 @@ namespace Networking.UI
                 _rollDiceButton.interactable = false;  // Disabled until game is ready
             }
 
+            if (_toggleActiveProjectsButton != null)
+            {
+                _toggleActiveProjectsButton.onClick.AddListener(OnToggleActiveProjectsClicked);
+            }
+
             if (_minigameReadyButton != null)
             {
                 _minigameReadyButton.onClick.AddListener(OnMinigameReadyClicked);
@@ -159,6 +177,16 @@ namespace Networking.UI
                 _victoryReturnButton.onClick.AddListener(OnVictoryReturnClicked);
             }
 
+            if (_projectBuyButton != null)
+            {
+                _projectBuyButton.onClick.AddListener(OnProjectBuyClicked);
+            }
+
+            if (_projectDeclineButton != null)
+            {
+                _projectDeclineButton.onClick.AddListener(OnProjectDeclineClicked);
+            }
+
             if (_minigameReadyPanel != null)
             {
                 _minigameReadyPanel.SetActive(false);
@@ -167,6 +195,16 @@ namespace Networking.UI
             if (_victoryPanel != null)
             {
                 _victoryPanel.SetActive(false);
+            }
+
+            if (_projectDecisionPanel != null)
+            {
+                _projectDecisionPanel.SetActive(false);
+            }
+
+            if (_activeProjectsPanel != null)
+            {
+                _activeProjectsPanel.SetActive(false);
             }
 
             InitializeMinigameReadyPlayerStatus();
@@ -202,6 +240,11 @@ namespace Networking.UI
                 _rollDiceButton.onClick.RemoveListener(OnRollDiceClicked);
             }
 
+            if (_toggleActiveProjectsButton != null)
+            {
+                _toggleActiveProjectsButton.onClick.RemoveListener(OnToggleActiveProjectsClicked);
+            }
+
             if (_minigameReadyButton != null)
             {
                 _minigameReadyButton.onClick.RemoveListener(OnMinigameReadyClicked);
@@ -210,6 +253,16 @@ namespace Networking.UI
             if (_victoryReturnButton != null)
             {
                 _victoryReturnButton.onClick.RemoveListener(OnVictoryReturnClicked);
+            }
+
+            if (_projectBuyButton != null)
+            {
+                _projectBuyButton.onClick.RemoveListener(OnProjectBuyClicked);
+            }
+
+            if (_projectDeclineButton != null)
+            {
+                _projectDeclineButton.onClick.RemoveListener(OnProjectDeclineClicked);
             }
         }
 
@@ -333,13 +386,25 @@ namespace Networking.UI
             }
 
             // Poll turn state while game lobby is active
-            if (_gameLobbyPanel != null && _gameLobbyPanel.activeSelf && runner != null)
+            if (runner != null)
             {
-                RefreshTurnUI(runner);
-                RefreshRivalPlayersUI(runner);
-                RefreshMinigameReadyPanel(runner);
-                RefreshBasinHealthImage(runner);
-                RefreshVictoryPanel(runner);
+                bool gameplaySurfaceVisible = (_gameLobbyPanel != null && _gameLobbyPanel.activeSelf)
+                    || (_vuforiaPanel != null && _vuforiaPanel.activeSelf);
+
+                if (gameplaySurfaceVisible)
+                {
+                    RefreshTurnUI(runner);
+                    RefreshMinigameReadyPanel(runner);
+                    RefreshProjectDecisionUI(runner);
+                    RefreshVictoryPanel(runner);
+                }
+
+                if (_gameLobbyPanel != null && _gameLobbyPanel.activeSelf)
+                {
+                    RefreshRivalPlayersUI(runner);
+                    RefreshBasinHealthImage(runner);
+                    RefreshActiveProjectsUI(runner);
+                }
             }
         }
 
@@ -355,10 +420,16 @@ namespace Networking.UI
 
             var localData = gm.GetPlayerData(runner.LocalPlayer, runner);
             bool isMyTurn = localData != null && localData.IsActiveTurn;
+            bool hasRolledThisTurn = localData != null && localData.HasRolledThisTurn;
 
             // Button: enabled only when it's our turn and we haven't started rolling
             if (_rollDiceButton != null)
-                _rollDiceButton.interactable = isMyTurn && !_diceRolling;
+                _rollDiceButton.interactable = isMyTurn && !hasRolledThisTurn && !_diceRolling;
+
+            bool awaitingProjectScan = localData != null && localData.IsAwaitingProjectScan;
+            bool awaitingCardScan = localData != null && localData.IsAwaitingCardScan;
+            if (_openVuforiaButton != null)
+                _openVuforiaButton.interactable = isMyTurn && (awaitingProjectScan || awaitingCardScan) && !_diceRolling;
 
             if (_roundStatusText != null)
             {
@@ -381,7 +452,12 @@ namespace Networking.UI
 
             var gameManager = Networking.Managers.GameManager.Instance;
             var localData = gameManager?.GetPlayerData(runner.LocalPlayer, runner);
-            bool showPanel = localData != null && localData.IsInMinigameReadyPhase && !_diceRolling;
+            bool showPanel = localData != null
+                && localData.IsInMinigameReadyPhase
+                && !localData.IsAwaitingProjectScan
+                && !localData.IsAwaitingProjectDecision
+                && !localData.IsAwaitingCardScan
+                && !_diceRolling;
 
             if (_minigameReadyPanel.activeSelf != showPanel)
             {
@@ -415,15 +491,20 @@ namespace Networking.UI
                 _minigameReadyText.text = $"Esperando a los demás jugadores... {readyCount}/{Mathf.Max(1, totalPlayers)} listos";
             }
 
-            if (_minigameReadyTileText != null)
+            if (_tileText != null)
             {
                 var tileType = gameManager.GetTileTypeAtPosition(localData.BoardPosition);
-                _minigameReadyTileText.text = BuildMinigameTileText(localData.BoardPosition, tileType);
+                _tileText.text = BuildMinigameTileText(localData.BoardPosition, tileType);
             }
 
-            if (_minigameReadyWaterText != null)
+            if (_waterText != null)
             {
-                _minigameReadyWaterText.text = BuildMinigameWaterText(localData.WaterAmount);
+                _waterText.text = BuildMinigameWaterText(localData.WaterAmount);
+            }
+
+            if (_moneyText != null)
+            {
+                _moneyText.text = BuildMinigameMoneyText(localData.MoneyAmount);
             }
 
             if (_minigameReadyButton != null)
@@ -452,18 +533,27 @@ namespace Networking.UI
                 ? localData.WaterAmount
                 : gameManager != null ? gameManager.StartingWater : 10;
 
+            int moneyAmount = localData != null
+                ? localData.MoneyAmount
+                : gameManager != null ? gameManager.StartingMoney : 0;
+
             var tileType = gameManager != null
                 ? gameManager.GetTileTypeAtPosition(boardPosition)
                 : Networking.Services.SliceTileType.Start;
 
-            if (_minigameReadyTileText != null)
+            if (_tileText != null)
             {
-                _minigameReadyTileText.text = BuildMinigameTileText(boardPosition, tileType);
+                _tileText.text = BuildMinigameTileText(boardPosition, tileType);
             }
 
-            if (_minigameReadyWaterText != null)
+            if (_waterText != null)
             {
-                _minigameReadyWaterText.text = BuildMinigameWaterText(waterAmount);
+                _waterText.text = BuildMinigameWaterText(waterAmount);
+            }
+
+            if (_moneyText != null)
+            {
+                _moneyText.text = BuildMinigameMoneyText(moneyAmount);
             }
         }
 
@@ -497,6 +587,84 @@ namespace Networking.UI
 
             _victoryPanel.SetActive(true);
             Debug.Log($"[LobbyCanvas] {(localData.IsDefeat ? "Defeat" : "Victory")} panel shown.");
+        }
+
+        private void RefreshProjectDecisionUI(NetworkRunner runner)
+        {
+            var gameManager = Networking.Managers.GameManager.Instance;
+            var localData = gameManager?.GetPlayerData(runner.LocalPlayer, runner);
+
+            bool isAwaitingProjectScan = localData != null && localData.IsAwaitingProjectScan;
+            bool isAwaitingProjectDecision = localData != null && localData.IsAwaitingProjectDecision;
+            bool isAwaitingCardScan = localData != null && localData.IsAwaitingCardScan;
+            bool projectFlowActive = isAwaitingProjectScan || isAwaitingProjectDecision;
+
+            // Track flow visibility for close-button handling only.
+            _projectFlowVisible = projectFlowActive || isAwaitingCardScan;
+
+            // When the scan has been completed (host pushed a pending project) and the
+            // Vuforia panel is already open, show the decision panel on top of it.
+            // We do NOT auto-open Vuforia here — the player opens it manually via the scan button.
+            if (isAwaitingProjectDecision && _vuforiaPanel != null && _vuforiaPanel.activeSelf
+                && _projectDecisionPanel != null && !_projectDecisionPanel.activeSelf)
+            {
+                _projectDecisionPanel.SetActive(true);
+            }
+
+            // Hide decision panel as soon as the project flow ends.
+            if (!projectFlowActive && _projectDecisionPanel != null && _projectDecisionPanel.activeSelf)
+            {
+                _projectDecisionPanel.SetActive(false);
+                if (_vuforiaPanel != null && _vuforiaPanel.activeSelf)
+                {
+                    CloseVuforiaPanel();
+                }
+            }
+
+            if (!isAwaitingProjectDecision)
+            {
+                if (_projectDecisionPanel != null)
+                {
+                    _projectDecisionPanel.SetActive(false);
+                }
+                return;
+            }
+
+            if (_projectDecisionPanel != null && !_projectDecisionPanel.activeSelf)
+            {
+                _projectDecisionPanel.SetActive(true);
+            }
+
+            string projectName = localData.PendingProjectName.ToString();
+            if (string.IsNullOrWhiteSpace(projectName))
+            {
+                projectName = $"Project {localData.PendingProjectId}";
+            }
+
+            if (_projectDecisionTitleText != null)
+            {
+                _projectDecisionTitleText.text = projectName;
+            }
+
+            if (_projectDecisionBodyText != null)
+            {
+                var zone = (Networking.Models.ColombiaZone)localData.PendingProjectZone;
+                _projectDecisionBodyText.text =
+                    $"Zone: {zone}\n" +
+                    $"Price: {localData.PendingProjectPrice}\n" +
+                    $"Water / round: {localData.PendingProjectWaterIncome}\n" +
+                    $"Money / round: {localData.PendingProjectMoneyIncome}";
+            }
+
+            if (_projectBuyButton != null)
+            {
+                _projectBuyButton.interactable = localData.MoneyAmount >= localData.PendingProjectPrice;
+            }
+
+            if (_projectDeclineButton != null)
+            {
+                _projectDeclineButton.interactable = true;
+            }
         }
 
         private void PopulateVictoryRanking(NetworkRunner runner, Networking.Managers.GameManager gm)
@@ -614,6 +782,96 @@ namespace Networking.UI
             }
         }
 
+        private void OnToggleActiveProjectsClicked()
+        {
+            if (_activeProjectsPanel == null)
+            {
+                Debug.LogWarning("[LobbyCanvas] Active projects panel is not assigned.");
+                return;
+            }
+
+            _activeProjectsPanel.SetActive(!_activeProjectsPanel.activeSelf);
+        }
+
+        private void RefreshActiveProjectsUI(NetworkRunner runner)
+        {
+            if (_projectContainer == null || _projectEntryPrefab == null)
+            {
+                return;
+            }
+
+            var gameManager = Networking.Managers.GameManager.Instance;
+            if (gameManager == null)
+            {
+                return;
+            }
+
+            var localData = gameManager.GetPlayerData(runner.LocalPlayer, runner);
+            if (localData == null)
+            {
+                return;
+            }
+
+            var projectDatabase = Networking.Managers.GameManager.Instance != null
+                ? gameManager.ProjectDatabase
+                : null;
+
+            // Collect occupied slots
+            var slots = new (int id, int zone)[]
+            {
+                (localData.OwnedProjectSlot0Id, localData.OwnedProjectSlot0Zone),
+                (localData.OwnedProjectSlot1Id, localData.OwnedProjectSlot1Zone),
+                (localData.OwnedProjectSlot2Id, localData.OwnedProjectSlot2Zone),
+            };
+
+            // Ensure we have exactly one child entry per occupied slot
+            int slotCount = 0;
+            foreach (var slot in slots)
+            {
+                if (slot.id > 0) slotCount++;
+            }
+
+            // Resize children: add missing, remove extras
+            while (_projectContainer.childCount < slotCount)
+            {
+                Instantiate(_projectEntryPrefab, _projectContainer);
+            }
+
+            while (_projectContainer.childCount > slotCount)
+            {
+                DestroyImmediate(_projectContainer.GetChild(_projectContainer.childCount - 1).gameObject);
+            }
+
+            int entryIndex = 0;
+            foreach (var slot in slots)
+            {
+                if (slot.id <= 0) continue;
+
+                var entryTransform = _projectContainer.GetChild(entryIndex);
+                var label = entryTransform.GetComponentInChildren<TMPro.TextMeshProUGUI>();
+                if (label == null)
+                {
+                    entryIndex++;
+                    continue;
+                }
+
+                string name = $"Project {slot.id}";
+                int water = 0;
+                int money = 0;
+
+                if (projectDatabase != null && projectDatabase.TryGetProject(slot.id, out var projectDef) && projectDef != null)
+                {
+                    name = projectDef.DisplayName;
+                    var (w, m) = projectDef.GetIncomeForZone((Networking.Models.ColombiaZone)slot.zone);
+                    water = w;
+                    money = m;
+                }
+
+                label.text = $"{name}\n+{water} water/round  +{money} money/round";
+                entryIndex++;
+            }
+        }
+
         private static string BuildRoundStatusText(Networking.Managers.GameManager gameManager)
         {
             int currentRound = Mathf.Max(1, gameManager.CurrentRound);
@@ -649,6 +907,11 @@ namespace Networking.UI
         private static string BuildMinigameWaterText(int waterAmount)
         {
             return $"{waterAmount}";
+        }
+
+        private static string BuildMinigameMoneyText(int moneyAmount)
+        {
+            return $"{moneyAmount}";
         }
 
         private void RefreshRivalPlayersUI(NetworkRunner runner)
@@ -712,6 +975,11 @@ namespace Networking.UI
                     cardView.WaterText.text = $"{rival.Data.WaterAmount}";
                 }
 
+                if (cardView.MoneyText != null)
+                {
+                    cardView.MoneyText.text = $"{rival.Data.MoneyAmount}";
+                }
+
                 if (cardView.RivalNameText != null)
                 {
                     cardView.RivalNameText.text = rival.Data.Nick.ToString();
@@ -741,6 +1009,7 @@ namespace Networking.UI
                 Root = instance,
                 CharacterImage = FindRequiredComponent<Image>(instance.transform, "CharacterImage"),
                 WaterText = FindRequiredComponent<TextMeshProUGUI>(instance.transform, "WaterText"),
+                MoneyText = FindRequiredComponent<TextMeshProUGUI>(instance.transform, "MoneyText"),
                 RivalNameText = FindRequiredComponent<TextMeshProUGUI>(instance.transform, "RivalName")
             };
 
@@ -1186,6 +1455,59 @@ namespace Networking.UI
                 _gameLobbyPanel.SetActive(true);
                 Debug.Log("[LobbyCanvas] ✓ Returned to Game Lobby panel");
             }
+
+            // If the player closed the AR panel while a project scan was pending, treat it as a decline.
+            if (_projectFlowVisible)
+            {
+                var runner = Networking.Services.FusionNetworkService.LocalRunner;
+                if (runner != null)
+                {
+                    var localData = Networking.Managers.GameManager.Instance?.GetPlayerData(runner.LocalPlayer, runner);
+                    if (localData != null && (localData.IsAwaitingProjectScan || localData.IsAwaitingProjectDecision))
+                    {
+                        localData.RPC_RequestDeclinePendingProject();
+                    }
+                    else if (localData != null && localData.IsAwaitingCardScan)
+                    {
+                        // Closing AR while awaiting a card scan: skip the card and advance the turn.
+                        localData.RPC_RequestSkipCardScan();
+                    }
+                }
+            }
+        }
+
+        private void OnProjectBuyClicked()
+        {
+            var runner = Networking.Services.FusionNetworkService.LocalRunner;
+            if (runner == null)
+            {
+                return;
+            }
+
+            var localData = Networking.Managers.GameManager.Instance?.GetPlayerData(runner.LocalPlayer, runner);
+            if (localData == null || !localData.IsAwaitingProjectDecision)
+            {
+                return;
+            }
+
+            localData.RPC_RequestBuyPendingProject();
+        }
+
+        private void OnProjectDeclineClicked()
+        {
+            var runner = Networking.Services.FusionNetworkService.LocalRunner;
+            if (runner == null)
+            {
+                return;
+            }
+
+            var localData = Networking.Managers.GameManager.Instance?.GetPlayerData(runner.LocalPlayer, runner);
+            if (localData == null || (!localData.IsAwaitingProjectDecision && !localData.IsAwaitingProjectScan))
+            {
+                return;
+            }
+
+            localData.RPC_RequestDeclinePendingProject();
         }
 
         private async Task LeaveLobbyAsync()
@@ -1235,6 +1557,11 @@ namespace Networking.UI
             {
                 _victoryPanel.SetActive(false);
             }
+            if (_projectDecisionPanel != null)
+            {
+                _projectDecisionPanel.SetActive(false);
+            }
+            _projectFlowVisible = false;
             _victoryShown = false;
             InitializeMinigameReadyPlayerStatus();
             if (_vuforiaPanel != null)

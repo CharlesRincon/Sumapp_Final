@@ -43,20 +43,30 @@ namespace Networking.Managers
 
         public int MaxRoundsToWin => _maxRoundsToWin;
         public int StartingWater => _startingWater;
+        public int StartingMoney => _startingMoney;
         public int StartingBasinHealth => _startingBasinHealth;
         public int InitialBoardPosition => 0;
+        public Networking.Models.ProjectDatabase ProjectDatabase => _projectDatabase;
+        public Networking.Models.CardDatabase CardDatabase => _cardDatabase;
+
+        private const int MaxOwnedProjects = 3;
 
         [Header("Round Slice Config")]
         [SerializeField] private int _boardTileCount = 24;
         [SerializeField] private int _startingWater = 10;
+        [SerializeField] private int _startingMoney = 0;
         [SerializeField] private int _startingBasinHealth = 100;
         [SerializeField] private int _hydricWaterGain = 2;
+        [SerializeField] private int _hydricMoneyGain = 1;
         [SerializeField] private int _hydricBasinBonus = 1;
         [SerializeField] private int _catastrophicWaterPenalty = 2;
+        [SerializeField] private int _catastrophicMoneyPenalty = 1;
         [SerializeField] private int _catastrophicBasinPenalty = 5;
         [SerializeField] private int _maxRoundsToWin = 3;
         [SerializeField] private float _nextRoundDelaySeconds = 1.25f;
         [SerializeField] private Networking.Models.BoardTileConfig _boardTileConfig;
+        [SerializeField] private Networking.Models.ProjectDatabase _projectDatabase;
+        [SerializeField] private Networking.Models.CardDatabase _cardDatabase;
 
         private Networking.Services.BasinService _basinService;
         private Networking.Services.TileService _tileService;
@@ -235,6 +245,16 @@ namespace Networking.Managers
             return _tileService.GetTileType(boardPosition);
         }
 
+        public Networking.Models.ColombiaZone GetZoneAtPosition(int boardPosition)
+        {
+            if (_tileService == null)
+            {
+                return Networking.Models.ColombiaZone.Andean;
+            }
+
+            return _tileService.GetTileZone(boardPosition);
+        }
+
         public void HandleValidatedTurnRoll(PlayerRef player, int diceRoll, NetworkRunner runner)
         {
             if (runner == null || !runner.IsServer || !_roundInProgress)
@@ -258,8 +278,11 @@ namespace Networking.Managers
             Networking.Events.NetworkEventDefinitions.Instance?.OnPlayerMovedEvent?.Raise(player, runner);
 
             State = GameState.TileResolve;
-            ResolveTileAndApplyEffects(playerData, runner);
-            AdvanceTurn(runner);
+            bool shouldAdvanceTurn = ResolveTileAndApplyEffects(playerData, runner);
+            if (shouldAdvanceTurn)
+            {
+                AdvanceTurn(runner);
+            }
         }
 
         private void DetermineTurnOrder(NetworkRunner runner)
@@ -317,10 +340,16 @@ namespace Networking.Managers
                 data.HasScannedARThisTurn = false;
                 data.IsInMinigameReadyPhase = false;
                 data.IsReadyForMinigame = false;
+                ClearPendingProjectState(data);
 
                 if (data.WaterAmount <= 0)
                 {
                     data.WaterAmount = _startingWater;
+                }
+
+                if (data.MoneyAmount <= 0)
+                {
+                    data.MoneyAmount = _startingMoney;
                 }
             }
         }
@@ -346,10 +375,16 @@ namespace Networking.Managers
                 }
 
                 data.BoardPosition = InitialBoardPosition;
+                ClearPendingProjectState(data);
 
                 if (data.WaterAmount <= 0)
                 {
                     data.WaterAmount = _startingWater;
+                }
+
+                if (data.MoneyAmount <= 0)
+                {
+                    data.MoneyAmount = _startingMoney;
                 }
             }
         }
@@ -364,6 +399,7 @@ namespace Networking.Managers
                     data.IsActiveTurn = false;
                     data.HasRolledThisTurn = false;
                     data.HasScannedARThisTurn = false;
+                    ClearPendingProjectState(data);
                 }
             }
 
@@ -385,7 +421,7 @@ namespace Networking.Managers
             Networking.Events.NetworkEventDefinitions.Instance?.OnTurnStartedEvent?.Raise(activePlayer, runner);
         }
 
-        private void ResolveTileAndApplyEffects(Networking.Models.PlayerSessionData playerData, NetworkRunner runner)
+        private bool ResolveTileAndApplyEffects(Networking.Models.PlayerSessionData playerData, NetworkRunner runner)
         {
             State = GameState.BasinCheck;
 
@@ -394,25 +430,45 @@ namespace Networking.Managers
             if (tileType == Networking.Services.SliceTileType.Start)
             {
                 // Start tile has no effect
-                return;
+                return true;
+            }
+
+            if (tileType == Networking.Services.SliceTileType.Project)
+            {
+                return BeginProjectTileFlow(playerData);
+            }
+
+            if (tileType == Networking.Services.SliceTileType.DrawCard)
+            {
+                return BeginDrawCardTileFlow(playerData);
+            }
+
+            if (tileType == Networking.Services.SliceTileType.Trivia)
+            {
+                return true;
             }
 
             int waterDelta;
+            int moneyDelta;
             int basinDelta;
 
             if (tileType == Networking.Services.SliceTileType.Hydric)
             {
                 waterDelta = _tileService.ResolveHydricWaterDelta(_hydricWaterGain);
+                moneyDelta = _hydricMoneyGain;
                 basinDelta = _tileService.ResolveHydricBasinDelta(_hydricBasinBonus);
             }
             else
             {
                 waterDelta = _tileService.ResolveCatastrophicWaterDelta(_catastrophicWaterPenalty);
+                moneyDelta = -_catastrophicMoneyPenalty;
                 basinDelta = _tileService.ResolveCatastrophicBasinDelta(_catastrophicBasinPenalty);
             }
 
             playerData.WaterAmount = Mathf.Max(0, playerData.WaterAmount + waterDelta);
             Networking.Events.NetworkEventDefinitions.Instance?.OnPlayerWaterChangedEvent?.Raise(playerData.Object.InputAuthority, runner);
+
+            playerData.MoneyAmount = Mathf.Max(0, playerData.MoneyAmount + moneyDelta);
 
             _basinService.ApplyDelta(basinDelta);
             SyncBasinHealthToAllPlayers(runner);
@@ -434,6 +490,220 @@ namespace Networking.Managers
 
                 Debug.Log("[GameManager] Basin defeated! All players lose.");
             }
+
+            return true;
+        }
+
+        private bool BeginProjectTileFlow(Networking.Models.PlayerSessionData playerData)
+        {
+            ClearPendingProjectState(playerData);
+
+            if (_projectDatabase == null)
+            {
+                Debug.LogWarning("[GameManager] Project tile ignored because no ProjectDatabase is assigned.");
+                return true;
+            }
+
+            if (CountOwnedProjects(playerData) >= MaxOwnedProjects)
+            {
+                Debug.Log($"[GameManager] Player {playerData.Object.InputAuthority.PlayerId} already has the maximum number of projects.");
+                return true;
+            }
+
+            playerData.IsAwaitingProjectScan = true;
+            State = GameState.Decision;
+            Debug.Log($"[GameManager] Player {playerData.Object.InputAuthority.PlayerId} landed on a Project tile. Waiting for scan.");
+            return false;
+        }
+
+        private bool BeginDrawCardTileFlow(Networking.Models.PlayerSessionData playerData)
+        {
+            ClearPendingProjectState(playerData);
+
+            if (_cardDatabase == null)
+            {
+                Debug.LogWarning("[GameManager] DrawCard tile ignored because no CardDatabase is assigned.");
+                return true;
+            }
+
+            playerData.IsAwaitingCardScan = true;
+            State = GameState.Decision;
+            Debug.Log($"[GameManager] Player {playerData.Object.InputAuthority.PlayerId} landed on a DrawCard tile. Waiting for scan.");
+            return false;
+        }
+
+        public void HandleCardScan(PlayerRef player, NetworkRunner runner, int cardId)
+        {
+            if (runner == null || !runner.IsServer)
+            {
+                return;
+            }
+
+            var playerData = GetPlayerData(player, runner);
+            if (playerData == null || !playerData.IsActiveTurn || !playerData.IsAwaitingCardScan)
+            {
+                return;
+            }
+
+            if (_cardDatabase == null || !_cardDatabase.TryGetCard(cardId, out var card) || card == null)
+            {
+                Debug.LogWarning($"[GameManager] Card scan rejected: unknown card ID {cardId}.");
+                return;
+            }
+
+            Debug.Log($"[GameManager] Card scanned: '{card.DisplayName}' (id={card.CardId}), " +
+                      $"water={card.WaterDelta}, money={card.MoneyDelta}, basin={card.BasinDelta}.");
+
+            if (card.WaterDelta != 0)
+            {
+                playerData.WaterAmount = Mathf.Max(0, playerData.WaterAmount + card.WaterDelta);
+                Networking.Events.NetworkEventDefinitions.Instance?.OnPlayerWaterChangedEvent?.Raise(player, runner);
+            }
+
+            if (card.MoneyDelta != 0)
+            {
+                playerData.MoneyAmount = Mathf.Max(0, playerData.MoneyAmount + card.MoneyDelta);
+            }
+
+            if (card.BasinDelta != 0)
+            {
+                _basinService.ApplyDelta(card.BasinDelta);
+                SyncBasinHealthToAllPlayers(runner);
+
+                if (_basinService.IsDefeated)
+                {
+                    SetGameState(GameState.Defeat);
+                    _roundInProgress = false;
+                    foreach (var p in runner.ActivePlayers)
+                    {
+                        var d = GetPlayerData(p, runner);
+                        if (d != null) { d.IsGameOver = true; d.IsDefeat = true; }
+                    }
+                    playerData.IsAwaitingCardScan = false;
+                    return;
+                }
+            }
+
+            playerData.IsAwaitingCardScan = false;
+            ClearPendingProjectState(playerData);
+            AdvanceTurn(runner);
+        }
+
+        public void HandleSkipCardScan(PlayerRef player, NetworkRunner runner)
+        {
+            if (runner == null || !runner.IsServer) return;
+
+            var playerData = GetPlayerData(player, runner);
+            if (playerData == null || !playerData.IsActiveTurn || !playerData.IsAwaitingCardScan) return;
+
+            Debug.Log($"[GameManager] Player {player.PlayerId} skipped card scan. Advancing turn.");
+            playerData.IsAwaitingCardScan = false;
+            ClearPendingProjectState(playerData);
+            AdvanceTurn(runner);
+        }
+
+        private void ClearPendingProjectState(Networking.Models.PlayerSessionData data)
+        {
+            if (data == null)
+            {
+                return;
+            }
+
+            data.PendingProjectId = 0;
+            data.PendingProjectName = default;
+            data.PendingProjectPrice = 0;
+            data.PendingProjectWaterIncome = 0;
+            data.PendingProjectMoneyIncome = 0;
+            data.PendingProjectZone = 0;
+            data.IsAwaitingProjectScan = false;
+            data.IsAwaitingProjectDecision = false;
+            data.IsAwaitingCardScan = false;
+        }
+
+        private int CountOwnedProjects(Networking.Models.PlayerSessionData data)
+        {
+            int count = 0;
+            if (data.OwnedProjectSlot0Id > 0) count++;
+            if (data.OwnedProjectSlot1Id > 0) count++;
+            if (data.OwnedProjectSlot2Id > 0) count++;
+            return count;
+        }
+
+        private bool TryAssignOwnedProject(Networking.Models.PlayerSessionData data, int projectId, Networking.Models.ColombiaZone zone)
+        {
+            if (data.OwnedProjectSlot0Id <= 0)
+            {
+                data.OwnedProjectSlot0Id = projectId;
+                data.OwnedProjectSlot0Zone = (int)zone;
+                return true;
+            }
+
+            if (data.OwnedProjectSlot1Id <= 0)
+            {
+                data.OwnedProjectSlot1Id = projectId;
+                data.OwnedProjectSlot1Zone = (int)zone;
+                return true;
+            }
+
+            if (data.OwnedProjectSlot2Id <= 0)
+            {
+                data.OwnedProjectSlot2Id = projectId;
+                data.OwnedProjectSlot2Zone = (int)zone;
+                return true;
+            }
+
+            return false;
+        }
+
+        private void AccumulateOwnedProjectPassive(int projectId, int zoneValue, ref int totalWater, ref int totalMoney)
+        {
+            if (projectId <= 0 || _projectDatabase == null)
+            {
+                return;
+            }
+
+            if (!_projectDatabase.TryGetProject(projectId, out var project) || project == null)
+            {
+                return;
+            }
+
+            var (water, money) = project.GetIncomeForZone((Networking.Models.ColombiaZone)zoneValue);
+            totalWater += water;
+            totalMoney += money;
+        }
+
+        private void ApplyPassiveProjectEffects(NetworkRunner runner)
+        {
+            if (runner == null || !runner.IsServer)
+            {
+                return;
+            }
+
+            foreach (var player in runner.ActivePlayers)
+            {
+                var data = GetPlayerData(player, runner);
+                if (data == null)
+                {
+                    continue;
+                }
+
+                int waterDelta = 0;
+                int moneyDelta = 0;
+                AccumulateOwnedProjectPassive(data.OwnedProjectSlot0Id, data.OwnedProjectSlot0Zone, ref waterDelta, ref moneyDelta);
+                AccumulateOwnedProjectPassive(data.OwnedProjectSlot1Id, data.OwnedProjectSlot1Zone, ref waterDelta, ref moneyDelta);
+                AccumulateOwnedProjectPassive(data.OwnedProjectSlot2Id, data.OwnedProjectSlot2Zone, ref waterDelta, ref moneyDelta);
+
+                if (waterDelta != 0)
+                {
+                    data.WaterAmount = Mathf.Max(0, data.WaterAmount + waterDelta);
+                    Networking.Events.NetworkEventDefinitions.Instance?.OnPlayerWaterChangedEvent?.Raise(player, runner);
+                }
+
+                if (moneyDelta != 0)
+                {
+                    data.MoneyAmount = Mathf.Max(0, data.MoneyAmount + moneyDelta);
+                }
+            }
         }
 
         private void SyncBasinHealthToAllPlayers(NetworkRunner runner)
@@ -452,6 +722,12 @@ namespace Networking.Managers
         {
             _roundInProgress = false;
             State = GameState.PassiveEffects;
+
+            if (runner != null && runner.IsServer)
+            {
+                ApplyPassiveProjectEffects(runner);
+            }
+
             Networking.Events.NetworkEventDefinitions.Instance?.OnRoundEndedEvent?.Raise(default, runner);
 
             if (runner == null || !runner.IsServer)
@@ -734,33 +1010,93 @@ namespace Networking.Managers
         /// <summary>
         /// Check if a specific character is available.
         /// </summary>
-        public void HandleARWaterBonus(PlayerRef player, NetworkRunner runner, int waterAmount)
+        public void HandleProjectCardScan(PlayerRef player, NetworkRunner runner, int projectId)
         {
-            if (runner == null || !runner.IsServer) return;
-
-            if (waterAmount <= 0)
+            if (runner == null || !runner.IsServer)
             {
-                Debug.LogWarning($"[GameManager] AR water bonus rejected: invalid amount {waterAmount}");
                 return;
             }
 
             var playerData = GetPlayerData(player, runner);
-            if (playerData == null)
+            if (playerData == null || !playerData.IsActiveTurn || !playerData.IsAwaitingProjectScan)
             {
-                Debug.LogWarning($"[GameManager] AR water bonus rejected: no data for player {player.PlayerId}");
                 return;
             }
 
-            if (playerData.HasScannedARThisTurn)
+            if (_tileService.GetTileType(playerData.BoardPosition) != Networking.Services.SliceTileType.Project)
             {
-                Debug.Log($"[GameManager] AR water bonus rejected: player {player.PlayerId} already scanned this turn.");
                 return;
             }
 
-            playerData.HasScannedARThisTurn = true;
-            playerData.WaterAmount = playerData.WaterAmount + waterAmount;
-            Networking.Events.NetworkEventDefinitions.Instance?.OnPlayerWaterChangedEvent?.Raise(player, runner);
-            Debug.Log($"[GameManager] AR water bonus: player {player.PlayerId} +{waterAmount} water → {playerData.WaterAmount}");
+            if (_projectDatabase == null || !_projectDatabase.TryGetProject(projectId, out var project) || project == null)
+            {
+                Debug.LogWarning($"[GameManager] Project scan rejected: unknown project ID {projectId}.");
+                return;
+            }
+
+            var zone = GetZoneAtPosition(playerData.BoardPosition);
+            var (waterIncome, moneyIncome) = project.GetIncomeForZone(zone);
+
+            Debug.Log($"[GameManager] Project scan: project='{project.DisplayName}' (id={project.ProjectId}), " +
+                      $"boardPos={playerData.BoardPosition}, resolvedZone={zone}, " +
+                      $"waterIncome={waterIncome}, moneyIncome={moneyIncome}.");
+
+            playerData.PendingProjectId = project.ProjectId;
+            playerData.PendingProjectName = project.DisplayName;
+            playerData.PendingProjectPrice = project.Price;
+            playerData.PendingProjectWaterIncome = waterIncome;
+            playerData.PendingProjectMoneyIncome = moneyIncome;
+            playerData.PendingProjectZone = (int)zone;
+            playerData.IsAwaitingProjectScan = false;
+            playerData.IsAwaitingProjectDecision = true;
+            State = GameState.Decision;
+        }
+
+        public void HandleBuyPendingProject(PlayerRef player, NetworkRunner runner)
+        {
+            if (runner == null || !runner.IsServer)
+            {
+                return;
+            }
+
+            var playerData = GetPlayerData(player, runner);
+            if (playerData == null || !playerData.IsActiveTurn || !playerData.IsAwaitingProjectDecision)
+            {
+                return;
+            }
+
+            if (playerData.PendingProjectId <= 0 || playerData.PendingProjectPrice > playerData.MoneyAmount)
+            {
+                return;
+            }
+
+            if (!TryAssignOwnedProject(playerData, playerData.PendingProjectId, (Networking.Models.ColombiaZone)playerData.PendingProjectZone))
+            {
+                return;
+            }
+
+            playerData.MoneyAmount = Mathf.Max(0, playerData.MoneyAmount - playerData.PendingProjectPrice);
+            ClearPendingProjectState(playerData);
+            State = GameState.BasinCheck;
+            AdvanceTurn(runner);
+        }
+
+        public void HandleDeclinePendingProject(PlayerRef player, NetworkRunner runner)
+        {
+            if (runner == null || !runner.IsServer)
+            {
+                return;
+            }
+
+            var playerData = GetPlayerData(player, runner);
+            if (playerData == null || !playerData.IsActiveTurn)
+            {
+                return;
+            }
+
+            ClearPendingProjectState(playerData);
+            State = GameState.BasinCheck;
+            AdvanceTurn(runner);
         }
 
         public bool IsCharacterAvailable(int characterId, NetworkRunner runner)

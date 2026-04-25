@@ -19,6 +19,16 @@ namespace Networking.Models
             Networking.Services.SliceTileType.Hydric, Networking.Services.SliceTileType.Hydric
         };
 
+        [SerializeField] private ColombiaZone[] _zones = new ColombiaZone[24]
+        {
+            ColombiaZone.Andean, ColombiaZone.Caribbean, ColombiaZone.Pacific, ColombiaZone.Orinoquia,
+            ColombiaZone.Amazon, ColombiaZone.Insular, ColombiaZone.Andean, ColombiaZone.Caribbean,
+            ColombiaZone.Pacific, ColombiaZone.Orinoquia, ColombiaZone.Amazon, ColombiaZone.Insular,
+            ColombiaZone.Andean, ColombiaZone.Caribbean, ColombiaZone.Pacific, ColombiaZone.Orinoquia,
+            ColombiaZone.Amazon, ColombiaZone.Insular, ColombiaZone.Andean, ColombiaZone.Caribbean,
+            ColombiaZone.Pacific, ColombiaZone.Orinoquia, ColombiaZone.Amazon, ColombiaZone.Insular
+        };
+
         public int TileCount => _tiles.Length;
 
         public Networking.Services.SliceTileType GetTileType(int boardPosition)
@@ -28,6 +38,15 @@ namespace Networking.Models
 
             int index = ((boardPosition % _tiles.Length) + _tiles.Length) % _tiles.Length;
             return _tiles[index];
+        }
+
+        public ColombiaZone GetZone(int boardPosition)
+        {
+            if (_zones == null || _zones.Length == 0)
+                return ColombiaZone.Andean;
+
+            int index = ((boardPosition % _zones.Length) + _zones.Length) % _zones.Length;
+            return _zones[index];
         }
     }
 }

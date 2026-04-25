@@ -4,7 +4,10 @@ namespace Networking.Services
     {
         Start,
         Hydric,
-        Catastrophic
+        Catastrophic,
+        Project,
+        DrawCard,
+        Trivia
     }
 
     /// <summary>
@@ -26,6 +29,14 @@ namespace Networking.Services
                 return SliceTileType.Hydric;
 
             return _config.GetTileType(boardPosition);
+        }
+
+        public Networking.Models.ColombiaZone GetTileZone(int boardPosition)
+        {
+            if (_config == null)
+                return Networking.Models.ColombiaZone.Andean;
+
+            return _config.GetZone(boardPosition);
         }
 
         public int ResolveHydricWaterDelta(int hydricGain)

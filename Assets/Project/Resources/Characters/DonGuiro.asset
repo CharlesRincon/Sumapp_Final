@@ -15,7 +15,7 @@ MonoBehaviour:
   <CharacterId>k__BackingField: 3
   <CharacterName>k__BackingField: "Don G\xFCiro"
   <Description>k__BackingField: Chiguiro
-  <CharacterSprite>k__BackingField: {fileID: 21300000, guid: 1b627b63cda78884194eafa5ff69ed1c, type: 3}
+  <CharacterSprite>k__BackingField: {fileID: 21300000, guid: cdf9b580334b0bd41852044e06582fbd, type: 3}
   <CharacterPrefab>k__BackingField:
     RawGuidValue: 00000000000000000000000000000000
   <Stats>k__BackingField:

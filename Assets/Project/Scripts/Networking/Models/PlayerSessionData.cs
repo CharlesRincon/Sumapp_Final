@@ -50,6 +50,54 @@ namespace Networking.Models
         public int WaterAmount { get; set; }
 
         [Networked]
+        public int MoneyAmount { get; set; }
+
+        [Networked]
+        public int OwnedProjectSlot0Id { get; set; }
+
+        [Networked]
+        public int OwnedProjectSlot0Zone { get; set; }
+
+        [Networked]
+        public int OwnedProjectSlot1Id { get; set; }
+
+        [Networked]
+        public int OwnedProjectSlot1Zone { get; set; }
+
+        [Networked]
+        public int OwnedProjectSlot2Id { get; set; }
+
+        [Networked]
+        public int OwnedProjectSlot2Zone { get; set; }
+
+        [Networked]
+        public int PendingProjectId { get; set; }
+
+        [Networked]
+        public NetworkString<_32> PendingProjectName { get; set; }
+
+        [Networked]
+        public int PendingProjectPrice { get; set; }
+
+        [Networked]
+        public int PendingProjectWaterIncome { get; set; }
+
+        [Networked]
+        public int PendingProjectMoneyIncome { get; set; }
+
+        [Networked]
+        public int PendingProjectZone { get; set; }
+
+        [Networked]
+        public bool IsAwaitingProjectScan { get; set; }
+
+        [Networked]
+        public bool IsAwaitingProjectDecision { get; set; }
+
+        [Networked]
+        public bool IsAwaitingCardScan { get; set; }
+
+        [Networked]
         public int BoardPosition { get; set; }
 
         [Networked]
@@ -170,24 +218,92 @@ namespace Networking.Models
             Debug.Log($"[PlayerSessionData.RPC_IncrementMinigameClickCount] After: {MinigameClickCount}");
         }
 
-        /// <summary>
-        /// Client requests a water bonus after scanning a Vuforia image target.
-        /// Host validates and applies the delta.
-        /// </summary>
         [Rpc(sources: RpcSources.InputAuthority, targets: RpcTargets.StateAuthority, HostMode = RpcHostMode.SourceIsHostPlayer)]
-        public void RPC_RequestARWaterBonus(int waterAmount)
+        public void RPC_RequestSkipCardScan()
         {
             if (!Object.HasStateAuthority) return;
 
             var runner = Runner;
             var gameManager = Networking.Managers.GameManager.Instance;
-            if (runner == null || gameManager == null)
+            if (runner == null || gameManager == null) return;
+
+            gameManager.HandleSkipCardScan(Object.InputAuthority, runner);
+        }
+
+        [Rpc(sources: RpcSources.InputAuthority, targets: RpcTargets.StateAuthority, HostMode = RpcHostMode.SourceIsHostPlayer)]
+        public void RPC_RequestCardScan(int cardId)
+        {
+            if (!Object.HasStateAuthority)
             {
-                Debug.LogError("[PlayerSessionData] Missing dependencies for AR water bonus request.");
                 return;
             }
 
-            gameManager.HandleARWaterBonus(Object.InputAuthority, runner, waterAmount);
+            var runner = Runner;
+            var gameManager = Networking.Managers.GameManager.Instance;
+            if (runner == null || gameManager == null)
+            {
+                Debug.LogError("[PlayerSessionData] Missing dependencies for card scan request.");
+                return;
+            }
+
+            gameManager.HandleCardScan(Object.InputAuthority, runner, cardId);
+        }
+
+        [Rpc(sources: RpcSources.InputAuthority, targets: RpcTargets.StateAuthority, HostMode = RpcHostMode.SourceIsHostPlayer)]
+        public void RPC_RequestProjectCardScan(int projectId)
+        {
+            if (!Object.HasStateAuthority)
+            {
+                return;
+            }
+
+            var runner = Runner;
+            var gameManager = Networking.Managers.GameManager.Instance;
+            if (runner == null || gameManager == null)
+            {
+                Debug.LogError("[PlayerSessionData] Missing dependencies for project scan request.");
+                return;
+            }
+
+            gameManager.HandleProjectCardScan(Object.InputAuthority, runner, projectId);
+        }
+
+        [Rpc(sources: RpcSources.InputAuthority, targets: RpcTargets.StateAuthority, HostMode = RpcHostMode.SourceIsHostPlayer)]
+        public void RPC_RequestBuyPendingProject()
+        {
+            if (!Object.HasStateAuthority)
+            {
+                return;
+            }
+
+            var runner = Runner;
+            var gameManager = Networking.Managers.GameManager.Instance;
+            if (runner == null || gameManager == null)
+            {
+                Debug.LogError("[PlayerSessionData] Missing dependencies for buy project request.");
+                return;
+            }
+
+            gameManager.HandleBuyPendingProject(Object.InputAuthority, runner);
+        }
+
+        [Rpc(sources: RpcSources.InputAuthority, targets: RpcTargets.StateAuthority, HostMode = RpcHostMode.SourceIsHostPlayer)]
+        public void RPC_RequestDeclinePendingProject()
+        {
+            if (!Object.HasStateAuthority)
+            {
+                return;
+            }
+
+            var runner = Runner;
+            var gameManager = Networking.Managers.GameManager.Instance;
+            if (runner == null || gameManager == null)
+            {
+                Debug.LogError("[PlayerSessionData] Missing dependencies for decline project request.");
+                return;
+            }
+
+            gameManager.HandleDeclinePendingProject(Object.InputAuthority, runner);
         }
 
         /// <summary>

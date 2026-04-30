@@ -621,6 +621,12 @@ namespace Networking.UI
                 }
             }
 
+            // Auto-close Vuforia when card scan is resolved (host cleared IsAwaitingCardScan).
+            if (!isAwaitingCardScan && _vuforiaPanel != null && _vuforiaPanel.activeSelf && !projectFlowActive)
+            {
+                CloseVuforiaPanel();
+            }
+
             if (!isAwaitingProjectDecision)
             {
                 if (_projectDecisionPanel != null)

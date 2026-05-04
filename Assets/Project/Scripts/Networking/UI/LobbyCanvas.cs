@@ -8,6 +8,7 @@ using Fusion;
 using FusionUtilsEvents;
 using System.Threading.Tasks;
 using System.Linq;
+using UnityEngine.InputSystem;
 
 namespace Networking.UI
 {
@@ -43,6 +44,7 @@ namespace Networking.UI
         [SerializeField] private TextMeshProUGUI _roundStatusText;
         [SerializeField] private TextMeshProUGUI _turnStatusText;
         [SerializeField] private Image _basinHealthImage;
+        [SerializeField] private Image _basinHealthRadialFill;
         [SerializeField] private Transform _rivalPlayersContainer;
         [SerializeField] private GameObject _rivalPlayerPrefab;
         [SerializeField] private Button _toggleActiveProjectsButton;
@@ -76,6 +78,30 @@ namespace Networking.UI
         [SerializeField] private TextMeshProUGUI _roomActionButtonText;
         [SerializeField] private TMP_InputField _nickname;
         [SerializeField] private TMP_InputField _room;
+        [Space]
+        [SerializeField] private GameObject _loadingPanel;
+        [SerializeField] private RectTransform _loadingPanelImage;
+        [Space]
+        [SerializeField] private GameObject _openingPanel;
+        [SerializeField] private RectTransform _waveImage1;
+        [SerializeField] private RectTransform _waveImage2;
+        [SerializeField] private RectTransform _waveImage3;
+        [SerializeField] private RectTransform _openingWaterdrop;
+        [SerializeField] private GameObject _openingTitleObject;
+        [SerializeField] private GameObject _tapToContinueObject;
+
+        private Coroutine _wave1Coroutine;
+        private Coroutine _wave2Coroutine;
+        private Coroutine _wave3Coroutine;
+        private Coroutine _tapPulseCoroutine;
+        private Vector2 _openingWaterdropStartPos;
+        private Vector3 _openingWaterdropStartScale;
+        private float _openingWaterdropStartZ;
+        private CanvasGroup _openingWaterdropCanvasGroup;
+        private RectTransform _openingTitle;
+        private CanvasGroup _openingTitleCanvasGroup;
+        private Vector2 _openingTitleStartPos;
+        private Vector3 _openingTitleStartScale;
 
         /// <summary>
         /// Character Selection UI panel (set in inspector).
@@ -264,12 +290,21 @@ namespace Networking.UI
             {
                 _projectDeclineButton.onClick.RemoveListener(OnProjectDeclineClicked);
             }
+
+            StopOpeningPanelAnimations();
         }
 
         private void Start()
         {
             Debug.Log("[LobbyCanvas] Start() called.");
             InitializeMinigameReadyPlayerStatus();
+
+            if (_openingPanel != null)
+            {
+                if (_initPanel != null) _initPanel.SetActive(false);
+                _openingPanel.SetActive(true);
+                StartOpeningPanelAnimations();
+            }
         }
 
         private bool _sessionRestored;
@@ -280,6 +315,14 @@ namespace Networking.UI
             var runner = Networking.Services.FusionNetworkService.LocalRunner;
 
             RefreshMinigameReadyPlayerStatus(runner);
+
+            if (_openingPanel != null && _openingPanel.activeSelf)
+            {
+                bool tapped = (Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame) ||
+                              (Touchscreen.current != null && Touchscreen.current.primaryTouch.press.wasPressedThisFrame);
+                if (tapped)
+                    CloseOpeningPanel();
+            }
 
             // On first frame with a runner, check if we're restoring an existing session
             if (!_sessionRestored && runner != null)
@@ -725,7 +768,7 @@ namespace Networking.UI
 
         private void RefreshBasinHealthImage(NetworkRunner runner)
         {
-            if (_basinHealthImage == null) return;
+            if (_basinHealthImage == null && _basinHealthRadialFill == null) return;
 
             var gm = Networking.Managers.GameManager.Instance;
             if (gm == null) return;
@@ -739,7 +782,8 @@ namespace Networking.UI
                 basinHealth = gm.StartingBasinHealth;
             }
 
-            float percentage = (float)basinHealth / Mathf.Max(1, gm.StartingBasinHealth) * 100f;
+            float normalizedHealth = (float)basinHealth / Mathf.Max(1, gm.StartingBasinHealth);
+            float percentage = normalizedHealth * 100f;
 
             Color color;
             if (percentage > 80f)
@@ -749,7 +793,16 @@ namespace Networking.UI
             else
                 color = Color.red;
 
-            _basinHealthImage.color = color;
+            if (_basinHealthImage != null)
+            {
+                _basinHealthImage.color = color;
+            }
+
+            if (_basinHealthRadialFill != null)
+            {
+                _basinHealthRadialFill.fillAmount = Mathf.Clamp01(normalizedHealth);
+                _basinHealthRadialFill.color = color;
+            }
         }
 
         private void OnVictoryReturnClicked()
@@ -1095,6 +1148,15 @@ namespace Networking.UI
             Launcher = FindFirstObjectByType<Networking.Managers.GameLauncher>();
             Nickname = _nickname.text;
             PlayerPrefs.SetString("Nick", Nickname);
+
+            if (_gameMode == GameMode.Host && _loadingPanel != null)
+            {
+                if (_initPanel != null)
+                    _initPanel.SetActive(false);
+                _loadingPanel.SetActive(true);
+                StartLoadingImageAnimation();
+            }
+
             Launcher.Launch(_gameMode, _room.text);
 
             var roomInputsRoot = GetRoomInputsRoot();
@@ -1587,6 +1649,14 @@ namespace Networking.UI
 
         public void ShowLobbyCanvas(PlayerRef player, NetworkRunner runner)
         {
+            if (_loadingPanel != null && _loadingPanel.activeSelf)
+            {
+                LeanTween.cancel(_loadingPanel);
+                if (_loadingPanelImage != null)
+                    LeanTween.cancel(_loadingPanelImage.gameObject);
+                _loadingPanel.SetActive(false);
+            }
+
             _initPanel.SetActive(false);
             _lobbyPanel.SetActive(true);
         }
@@ -1604,6 +1674,198 @@ namespace Networking.UI
             }
 
             return null;
+        }
+
+        private void StartLoadingImageAnimation()
+        {
+            if (_loadingPanelImage == null) return;
+
+            Vector3 startPos = _loadingPanelImage.anchoredPosition3D;
+            float floatAmount = 18f;
+            float duration   = 1.6f;
+
+            LeanTween.moveLocalY(_loadingPanelImage.gameObject, startPos.y + floatAmount, duration)
+                .setEase(LeanTweenType.easeInOutSine)
+                .setLoopPingPong();
+        }
+
+        private void StartOpeningPanelAnimations()
+        {
+            if (_waveImage1 != null)
+                _wave1Coroutine = StartCoroutine(AnimateWave(_waveImage1, 14f, 1.1f, 0f));
+            if (_waveImage2 != null)
+                _wave2Coroutine = StartCoroutine(AnimateWave(_waveImage2, 20f, 0.85f, 1.2f));
+            if (_waveImage3 != null)
+                _wave3Coroutine = StartCoroutine(AnimateWave(_waveImage3, 10f, 1.4f, 2.5f));
+            if (_tapToContinueObject != null)
+                _tapPulseCoroutine = StartCoroutine(PulseTapToContinue(_tapToContinueObject));
+
+            StartOpeningPanelMainTweens();
+        }
+
+        private void StartOpeningPanelMainTweens()
+        {
+            if (_openingWaterdrop != null)
+            {
+                _openingWaterdropStartPos = _openingWaterdrop.anchoredPosition;
+                _openingWaterdropStartScale = _openingWaterdrop.localScale;
+                _openingWaterdropStartZ = _openingWaterdrop.localEulerAngles.z;
+
+                if (_openingWaterdropCanvasGroup == null)
+                {
+                    _openingWaterdropCanvasGroup = _openingWaterdrop.GetComponent<CanvasGroup>();
+                    if (_openingWaterdropCanvasGroup == null)
+                        _openingWaterdropCanvasGroup = _openingWaterdrop.gameObject.AddComponent<CanvasGroup>();
+                }
+
+                LeanTween.cancel(_openingWaterdrop.gameObject);
+                LeanTween.cancel(_openingWaterdropCanvasGroup.gameObject);
+
+                _openingWaterdropCanvasGroup.alpha = 0f;
+
+                LeanTween.alphaCanvas(_openingWaterdropCanvasGroup, 1f, 0.9f)
+                    .setEase(LeanTweenType.easeOutSine);
+
+                LeanTween.moveLocalY(_openingWaterdrop.gameObject, _openingWaterdropStartPos.y + 14f, 1.8f)
+                    .setEase(LeanTweenType.easeInOutSine)
+                    .setLoopPingPong();
+
+                LeanTween.scale(_openingWaterdrop.gameObject, _openingWaterdropStartScale + new Vector3(0.04f, -0.02f, 0f), 1.6f)
+                    .setEase(LeanTweenType.easeInOutSine)
+                    .setLoopPingPong();
+
+                LeanTween.rotateZ(_openingWaterdrop.gameObject, _openingWaterdropStartZ + 3f, 2.2f)
+                    .setEase(LeanTweenType.easeInOutSine)
+                    .setLoopPingPong();
+            }
+
+            if (_openingTitleObject != null && _openingTitle == null)
+            {
+                _openingTitle = _openingTitleObject.GetComponent<RectTransform>();
+            }
+
+            if (_openingTitle != null)
+            {
+                _openingTitleStartPos = _openingTitle.anchoredPosition;
+                _openingTitleStartScale = _openingTitle.localScale;
+
+                if (_openingTitleCanvasGroup == null)
+                {
+                    _openingTitleCanvasGroup = _openingTitle.GetComponent<CanvasGroup>();
+                    if (_openingTitleCanvasGroup == null)
+                        _openingTitleCanvasGroup = _openingTitle.gameObject.AddComponent<CanvasGroup>();
+                }
+
+                LeanTween.cancel(_openingTitle.gameObject);
+                LeanTween.cancel(_openingTitleCanvasGroup.gameObject);
+
+                _openingTitle.anchoredPosition = _openingTitleStartPos + new Vector2(0f, -20f);
+                _openingTitle.localScale = _openingTitleStartScale;
+                _openingTitleCanvasGroup.alpha = 0f;
+
+                Vector2 introFrom = _openingTitle.anchoredPosition;
+                LeanTween.value(_openingTitle.gameObject, 0f, 1f, 0.8f)
+                    .setEase(LeanTweenType.easeOutCubic)
+                    .setOnUpdate((float t) =>
+                    {
+                        if (_openingTitle != null)
+                        {
+                            _openingTitle.anchoredPosition = Vector2.LerpUnclamped(introFrom, _openingTitleStartPos, t);
+                        }
+                    });
+
+                LeanTween.alphaCanvas(_openingTitleCanvasGroup, 1f, 0.8f)
+                    .setEase(LeanTweenType.easeOutSine)
+                    .setOnComplete(() =>
+                    {
+                        if (_openingTitle != null)
+                        {
+                            LeanTween.scale(_openingTitle.gameObject, _openingTitleStartScale * 1.1f, 2f)
+                                .setEase(LeanTweenType.easeInOutSine)
+                                .setLoopPingPong();
+                        }
+                    });
+            }
+        }
+
+        private void StopOpeningPanelAnimations()
+        {
+            if (_wave1Coroutine != null) { StopCoroutine(_wave1Coroutine); _wave1Coroutine = null; }
+            if (_wave2Coroutine != null) { StopCoroutine(_wave2Coroutine); _wave2Coroutine = null; }
+            if (_wave3Coroutine != null) { StopCoroutine(_wave3Coroutine); _wave3Coroutine = null; }
+            if (_tapPulseCoroutine != null) { StopCoroutine(_tapPulseCoroutine); _tapPulseCoroutine = null; }
+
+            if (_openingWaterdrop != null)
+            {
+                LeanTween.cancel(_openingWaterdrop.gameObject);
+                _openingWaterdrop.anchoredPosition = _openingWaterdropStartPos;
+                _openingWaterdrop.localScale = _openingWaterdropStartScale;
+                _openingWaterdrop.localRotation = Quaternion.Euler(0f, 0f, _openingWaterdropStartZ);
+            }
+
+            if (_openingWaterdropCanvasGroup != null)
+            {
+                LeanTween.cancel(_openingWaterdropCanvasGroup.gameObject);
+                _openingWaterdropCanvasGroup.alpha = 1f;
+            }
+
+            if (_openingTitle != null)
+            {
+                LeanTween.cancel(_openingTitle.gameObject);
+                _openingTitle.anchoredPosition = _openingTitleStartPos;
+                _openingTitle.localScale = _openingTitleStartScale;
+            }
+
+            if (_openingTitleCanvasGroup != null)
+            {
+                LeanTween.cancel(_openingTitleCanvasGroup.gameObject);
+                _openingTitleCanvasGroup.alpha = 1f;
+            }
+        }
+
+        private void CloseOpeningPanel()
+        {
+            StopOpeningPanelAnimations();
+
+            _openingPanel.SetActive(false);
+            if (_initPanel != null) _initPanel.SetActive(true);
+        }
+
+        private IEnumerator AnimateWave(RectTransform wave, float amplitude, float speed, float phaseOffset)
+        {
+            Vector2 startPos = wave.anchoredPosition;
+            float time = phaseOffset;
+            while (true)
+            {
+                time += Time.deltaTime * speed;
+                wave.anchoredPosition = new Vector2(startPos.x, startPos.y + Mathf.Sin(time) * amplitude);
+                yield return null;
+            }
+        }
+
+        private IEnumerator PulseTapToContinue(GameObject obj)
+        {
+            CanvasGroup group = obj.GetComponent<CanvasGroup>();
+            if (group == null) group = obj.AddComponent<CanvasGroup>();
+            while (true)
+            {
+                float t = 0f;
+                while (t < 1f)
+                {
+                    t += Time.deltaTime / 2f;
+                    group.alpha = Mathf.Lerp(0f, 1f, t);
+                    yield return null;
+                }
+                yield return new WaitForSeconds(0.25f);
+                t = 0f;
+                while (t < 1f)
+                {
+                    t += Time.deltaTime / 0.75f;
+                    group.alpha = Mathf.Lerp(1f, 0f, t);
+                    yield return null;
+                }
+                yield return new WaitForSeconds(0.15f);
+            }
         }
 
         public void UpdateLobbyList(PlayerRef playerRef, NetworkRunner runner)

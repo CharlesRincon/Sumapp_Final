@@ -130,6 +130,22 @@ namespace Networking.Models
         [Networked]
         public bool IsDefeat { get; set; }
 
+        /// <summary>Absorbs the next negative effect from a tile or card. Does not block project passives.</summary>
+        [Networked]
+        public bool HasNegativeShield { get; set; }
+
+        /// <summary>Applied additively to the player's next dice roll, then cleared to 0.</summary>
+        [Networked]
+        public int PendingDiceModifier { get; set; }
+
+        /// <summary>True while the player is expected to submit a decision-card vote.</summary>
+        [Networked]
+        public bool IsAwaitingDecisionVote { get; set; }
+
+        /// <summary>0 = not yet voted, 1 = chose A, 2 = chose B.</summary>
+        [Networked]
+        public int PendingDecisionVote { get; set; }
+
         public FusionEvent OnPlayerDataSpawnedEvent;
 
         private ChangeDetector _changeDetector;
@@ -304,6 +320,26 @@ namespace Networking.Models
             }
 
             gameManager.HandleDeclinePendingProject(Object.InputAuthority, runner);
+        }
+
+        /// <summary>
+        /// Submits this player's vote for an active decision card.
+        /// choice: 1 = Option A, 2 = Option B.
+        /// </summary>
+        [Rpc(sources: RpcSources.InputAuthority, targets: RpcTargets.StateAuthority, HostMode = RpcHostMode.SourceIsHostPlayer)]
+        public void RPC_RequestDecisionVote(int choice)
+        {
+            if (!Object.HasStateAuthority) return;
+
+            var runner = Runner;
+            var gameManager = Networking.Managers.GameManager.Instance;
+            if (runner == null || gameManager == null)
+            {
+                Debug.LogError("[PlayerSessionData] Missing dependencies for decision vote request.");
+                return;
+            }
+
+            gameManager.HandleDecisionVote(Object.InputAuthority, runner, choice);
         }
 
         /// <summary>

@@ -13,9 +13,12 @@ MonoBehaviour:
   m_Name: Project_2
   m_EditorClassIdentifier: Assembly-CSharp::Networking.Models.ProjectDefinition
   _projectId: 2
-  _displayName: Project2
+  _displayName: "Corredor ecol\xF3gico"
   _price: 4
   _markerId: 
   _baseWaterPerRound: 1
   _baseMoneyPerRound: 3
   _zoneEffects: []
+  _passiveBehaviours: 24
+  _basinThresholdForBonus: 0.3
+  _climateEventMoneyBonus: 2

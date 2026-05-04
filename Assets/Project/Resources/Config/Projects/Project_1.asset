@@ -13,9 +13,12 @@ MonoBehaviour:
   m_Name: Project_1
   m_EditorClassIdentifier: Assembly-CSharp::Networking.Models.ProjectDefinition
   _projectId: 1
-  _displayName: Project1
+  _displayName: Planta de tratamiento de Agua Residual
   _price: 3
   _markerId: 
   _baseWaterPerRound: 1
   _baseMoneyPerRound: 2
   _zoneEffects: []
+  _passiveBehaviours: 7
+  _basinThresholdForBonus: 0.3
+  _climateEventMoneyBonus: 1

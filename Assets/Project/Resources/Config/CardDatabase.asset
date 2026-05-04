@@ -14,3 +14,4 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Networking.Models.CardDatabase
   _cards:
   - {fileID: 11400000, guid: 05958bf4199b3664382ac87e7a9684f4, type: 2}
+  - {fileID: 11400000, guid: 9c0637f7675e0444195b67ea74bd1fa2, type: 2}

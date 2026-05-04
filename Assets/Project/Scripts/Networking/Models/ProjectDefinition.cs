@@ -3,6 +3,22 @@ using UnityEngine;
 
 namespace Networking.Models
 {
+    [Flags]
+    public enum ProjectPassiveBehaviour
+    {
+        None                       = 0,
+        /// <summary>Water income ignores all round water-gain penalties from cards.</summary>
+        BypassesRoundWaterPenalty  = 1 << 0,
+        /// <summary>Water income is doubled when basin health is below BasinThresholdForBonus.</summary>
+        DoublesWaterBelowBasinThreshold = 1 << 1,
+        /// <summary>Water income is set to zero while a Drought event is active this round.</summary>
+        NullifiedByDroughtEvent    = 1 << 2,
+        /// <summary>Adds ClimateEventMoneyBonus to money income while a Climate event is active.</summary>
+        BonusMoneyFromClimateEvent = 1 << 3,
+        /// <summary>Money income is reduced by the active Deforestation event penalty this round.</summary>
+        ReducedByDeforestationEvent = 1 << 4,
+    }
+
     [Serializable]
     public struct ProjectZoneEffect
     {
@@ -26,12 +42,25 @@ namespace Networking.Models
         [Header("Per-zone bonuses (optional, added on top of base)")]
         [SerializeField] private ProjectZoneEffect[] _zoneEffects = Array.Empty<ProjectZoneEffect>();
 
+        [Header("Passive Behaviours")]
+        [Tooltip("Flags that control special runtime rules for this project's passive income.")]
+        [SerializeField] private ProjectPassiveBehaviour _passiveBehaviours = ProjectPassiveBehaviour.None;
+        [Tooltip("Basin health fraction (0-1) below which DoublesWaterBelowBasinThreshold activates. Default 0.3 = 30%.")]
+        [SerializeField] private float _basinThresholdForBonus = 0.3f;
+        [Tooltip("Extra money added per round when BonusMoneyFromClimateEvent is active.")]
+        [SerializeField] private int _climateEventMoneyBonus = 1;
+
         public int ProjectId => _projectId;
         public string DisplayName => _displayName;
         public int Price => _price;
         public string MarkerId => _markerId;
         public int BaseWaterPerRound => _baseWaterPerRound;
         public int BaseMoneyPerRound => _baseMoneyPerRound;
+        public ProjectPassiveBehaviour PassiveBehaviours => _passiveBehaviours;
+        public float BasinThresholdForBonus => _basinThresholdForBonus;
+        public int ClimateEventMoneyBonus => _climateEventMoneyBonus;
+
+        public bool HasBehaviour(ProjectPassiveBehaviour flag) => (_passiveBehaviours & flag) != 0;
 
         /// <summary>
         /// Returns the total water and money income for the given zone.

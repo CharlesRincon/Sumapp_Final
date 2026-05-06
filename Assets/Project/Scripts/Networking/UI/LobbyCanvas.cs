@@ -37,6 +37,9 @@ namespace Networking.UI
         [SerializeField] private Image _gameLobbyCharacterImage;
         [SerializeField] private TextMeshProUGUI _diceResultText;
         [SerializeField] private TextMeshProUGUI _tileText;
+        [SerializeField] private GameObject _turnNotificationPanel;
+        [SerializeField] private TextMeshProUGUI _turnNotificationText;
+        private bool _shownTurnNotificationThisTurn = false;
         [SerializeField] private TextMeshProUGUI _waterText;
         [SerializeField] private TextMeshProUGUI _moneyText;
         [SerializeField] private Button _rollDiceButton;
@@ -47,28 +50,11 @@ namespace Networking.UI
         [SerializeField] private Image _basinHealthRadialFill;
         [SerializeField] private Transform _rivalPlayersContainer;
         [SerializeField] private GameObject _rivalPlayerPrefab;
-        [SerializeField] private Button _toggleActiveProjectsButton;
-        [SerializeField] private GameObject _activeProjectsPanel;
-        [SerializeField] private Transform _projectContainer;
-        [SerializeField] private GameObject _projectEntryPrefab;
         [Space]
-        [SerializeField] private GameObject _minigameReadyPanel;
-        [SerializeField] private TextMeshProUGUI _minigameReadyText;
-        [SerializeField] private Button _minigameReadyButton;
         [Space]
         [SerializeField] private TurnOrderPanel _turnOrderPanel;
         [Space]
-        [SerializeField] private GameObject _victoryPanel;
-        [SerializeField] private Transform _victoryRankingContainer;
-        [SerializeField] private GameObject _victoryRankingEntryPrefab;
-        [SerializeField] private Button _victoryReturnButton;
-        [Space]
         [SerializeField] private GameObject _vuforiaPanel;
-        [SerializeField] private GameObject _projectDecisionPanel;
-        [SerializeField] private TextMeshProUGUI _projectDecisionTitleText;
-        [SerializeField] private TextMeshProUGUI _projectDecisionBodyText;
-        [SerializeField] private Button _projectBuyButton;
-        [SerializeField] private Button _projectDeclineButton;
         [SerializeField] private GameObject _backgroundImage;
         [SerializeField] private GameObject _vuforiaARCamera;
         [Space]
@@ -78,30 +64,10 @@ namespace Networking.UI
         [SerializeField] private TextMeshProUGUI _roomActionButtonText;
         [SerializeField] private TMP_InputField _nickname;
         [SerializeField] private TMP_InputField _room;
-        [Space]
-        [SerializeField] private GameObject _loadingPanel;
-        [SerializeField] private RectTransform _loadingPanelImage;
-        [Space]
-        [SerializeField] private GameObject _openingPanel;
-        [SerializeField] private RectTransform _waveImage1;
-        [SerializeField] private RectTransform _waveImage2;
-        [SerializeField] private RectTransform _waveImage3;
-        [SerializeField] private RectTransform _openingWaterdrop;
-        [SerializeField] private GameObject _openingTitleObject;
-        [SerializeField] private GameObject _tapToContinueObject;
-
-        private Coroutine _wave1Coroutine;
-        private Coroutine _wave2Coroutine;
-        private Coroutine _wave3Coroutine;
-        private Coroutine _tapPulseCoroutine;
-        private Vector2 _openingWaterdropStartPos;
-        private Vector3 _openingWaterdropStartScale;
-        private float _openingWaterdropStartZ;
-        private CanvasGroup _openingWaterdropCanvasGroup;
-        private RectTransform _openingTitle;
-        private CanvasGroup _openingTitleCanvasGroup;
-        private Vector2 _openingTitleStartPos;
-        private Vector3 _openingTitleStartScale;
+        [SerializeField] private AnimationsLogic _animationsLogic;
+        [SerializeField] private VictoryUIController _victoryUIController;
+        [SerializeField] private MinigameReadyUIController _minigameReadyUIController;
+        [SerializeField] private ProjectFlowUIController _projectFlowUIController;
 
         /// <summary>
         /// Character Selection UI panel (set in inspector).
@@ -122,7 +88,7 @@ namespace Networking.UI
         public CharacterSelectionPanel CharacterSelectionPanel => _characterSelectionPanel;
 
         private readonly Dictionary<PlayerRef, RivalPlayerCardView> _rivalPlayerCards = new Dictionary<PlayerRef, RivalPlayerCardView>();
-        private bool _projectFlowVisible;
+        private static bool _openingPanelShownThisAppSession;
 
         private sealed class RivalPlayerCardView
         {
@@ -188,52 +154,16 @@ namespace Networking.UI
                 _rollDiceButton.interactable = false;  // Disabled until game is ready
             }
 
-            if (_toggleActiveProjectsButton != null)
-            {
-                _toggleActiveProjectsButton.onClick.AddListener(OnToggleActiveProjectsClicked);
-            }
+            EnsureMinigameReadyUIController();
+            _minigameReadyUIController?.HidePanel();
+            EnsureVictoryUIController();
+            _victoryUIController?.HidePanel();
+            EnsureProjectFlowUIController();
+            _projectFlowUIController?.InitializePanels();
 
-            if (_minigameReadyButton != null)
-            {
-                _minigameReadyButton.onClick.AddListener(OnMinigameReadyClicked);
-            }
-
-            if (_victoryReturnButton != null)
-            {
-                _victoryReturnButton.onClick.AddListener(OnVictoryReturnClicked);
-            }
-
-            if (_projectBuyButton != null)
-            {
-                _projectBuyButton.onClick.AddListener(OnProjectBuyClicked);
-            }
-
-            if (_projectDeclineButton != null)
-            {
-                _projectDeclineButton.onClick.AddListener(OnProjectDeclineClicked);
-            }
-
-            if (_minigameReadyPanel != null)
-            {
-                _minigameReadyPanel.SetActive(false);
-            }
-
-            if (_victoryPanel != null)
-            {
-                _victoryPanel.SetActive(false);
-            }
-
-            if (_projectDecisionPanel != null)
-            {
-                _projectDecisionPanel.SetActive(false);
-            }
-
-            if (_activeProjectsPanel != null)
-            {
-                _activeProjectsPanel.SetActive(false);
-            }
-
-            InitializeMinigameReadyPlayerStatus();
+            EnsureMinigameReadyUIController();
+            _minigameReadyUIController?.InitializeStatus();
+            InitializeGameLobbyStatus();
         }
 
         private void OnDisable()
@@ -266,45 +196,33 @@ namespace Networking.UI
                 _rollDiceButton.onClick.RemoveListener(OnRollDiceClicked);
             }
 
-            if (_toggleActiveProjectsButton != null)
-            {
-                _toggleActiveProjectsButton.onClick.RemoveListener(OnToggleActiveProjectsClicked);
-            }
-
-            if (_minigameReadyButton != null)
-            {
-                _minigameReadyButton.onClick.RemoveListener(OnMinigameReadyClicked);
-            }
-
-            if (_victoryReturnButton != null)
-            {
-                _victoryReturnButton.onClick.RemoveListener(OnVictoryReturnClicked);
-            }
-
-            if (_projectBuyButton != null)
-            {
-                _projectBuyButton.onClick.RemoveListener(OnProjectBuyClicked);
-            }
-
-            if (_projectDeclineButton != null)
-            {
-                _projectDeclineButton.onClick.RemoveListener(OnProjectDeclineClicked);
-            }
-
             StopOpeningPanelAnimations();
         }
 
         private void Start()
         {
             Debug.Log("[LobbyCanvas] Start() called.");
-            InitializeMinigameReadyPlayerStatus();
+            EnsureMinigameReadyUIController();
+            _minigameReadyUIController?.InitializeStatus();
 
-            if (_openingPanel != null)
+            EnsureAnimationsLogic();
+            if (_animationsLogic?.OpeningPanel != null)
             {
-                if (_initPanel != null) _initPanel.SetActive(false);
-                _openingPanel.SetActive(true);
-                StartOpeningPanelAnimations();
+                bool shouldShowOpening = !_openingPanelShownThisAppSession && !ShouldSkipOpeningPanel();
+                if (shouldShowOpening)
+                {
+                    if (_initPanel != null) _initPanel.SetActive(false);
+                    _animationsLogic.OpeningPanel.SetActive(true);
+                    StartOpeningPanelAnimations();
+                }
+                else
+                {
+                    HideOpeningPanelImmediate();
+                    if (_initPanel != null) _initPanel.SetActive(true);
+                }
             }
+
+            _openingPanelShownThisAppSession = true;
         }
 
         private bool _sessionRestored;
@@ -314,9 +232,7 @@ namespace Networking.UI
         {
             var runner = Networking.Services.FusionNetworkService.LocalRunner;
 
-            RefreshMinigameReadyPlayerStatus(runner);
-
-            if (_openingPanel != null && _openingPanel.activeSelf)
+            if (_animationsLogic?.OpeningPanel != null && _animationsLogic.OpeningPanel.activeSelf)
             {
                 bool tapped = (Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame) ||
                               (Touchscreen.current != null && Touchscreen.current.primaryTouch.press.wasPressedThisFrame);
@@ -345,6 +261,7 @@ namespace Networking.UI
                 if (anyCharacterSelected && FindFirstObjectByType<Networking.Managers.CharacterSelectionManager>() == null)
                 {
                     Debug.Log("[LobbyCanvas] Detected return from minigame. Showing GameLobbyPanel.");
+                    HideOpeningPanelImmediate();
 
                     // Hide init/lobby panels
                     if (_initPanel != null)
@@ -417,6 +334,7 @@ namespace Networking.UI
                     // Only show GameLobbyPanel if characters are selected (minigame return)
                     if (anyCharacterSelected)
                     {
+                        HideOpeningPanelImmediate();
                         _lobbyPanel.SetActive(false);
                         if (_gameLobbyPanel != null)
                         {
@@ -437,7 +355,9 @@ namespace Networking.UI
                 if (gameplaySurfaceVisible)
                 {
                     RefreshTurnUI(runner);
-                    RefreshMinigameReadyPanel(runner);
+                    EnsureMinigameReadyUIController();
+                    _minigameReadyUIController?.Refresh(runner, _diceRolling, _turnNotificationPanel);
+                    RefreshGameLobbyStatus(runner);
                     RefreshProjectDecisionUI(runner);
                     RefreshVictoryPanel(runner);
                 }
@@ -484,84 +404,36 @@ namespace Networking.UI
             {
                 _turnStatusText.text = BuildTurnStatusText(gm, runner, isMyTurn);
             }
-        }
 
-        private void RefreshMinigameReadyPanel(NetworkRunner runner)
-        {
-            if (_minigameReadyPanel == null)
+            // Turn notification sub-panel — show "your turn" once per turn entry
+            if (_turnNotificationPanel != null)
             {
-                return;
-            }
-
-            var gameManager = Networking.Managers.GameManager.Instance;
-            var localData = gameManager?.GetPlayerData(runner.LocalPlayer, runner);
-            bool showPanel = localData != null
-                && localData.IsInMinigameReadyPhase
-                && !localData.IsAwaitingProjectScan
-                && !localData.IsAwaitingProjectDecision
-                && !localData.IsAwaitingCardScan
-                && !_diceRolling;
-
-            if (_minigameReadyPanel.activeSelf != showPanel)
-            {
-                _minigameReadyPanel.SetActive(showPanel);
-            }
-
-            if (!showPanel)
-            {
-                return;
-            }
-
-            int readyCount = 0;
-            int totalPlayers = 0;
-            foreach (var player in runner.ActivePlayers)
-            {
-                var data = gameManager.GetPlayerData(player, runner);
-                if (data == null || !data.IsInMinigameReadyPhase)
+                if (isMyTurn && !_shownTurnNotificationThisTurn)
                 {
-                    continue;
+                    _shownTurnNotificationThisTurn = true;
+                    ShowTurnNotification("\u00a1Es tu turno!");
                 }
-
-                totalPlayers++;
-                if (data.IsReadyForMinigame)
+                else if (!isMyTurn)
                 {
-                    readyCount++;
+                    if (_shownTurnNotificationThisTurn)
+                        HideTurnNotification();
+                    _shownTurnNotificationThisTurn = false;
                 }
             }
-
-            if (_minigameReadyText != null)
-            {
-                _minigameReadyText.text = $"Esperando a los demás jugadores... {readyCount}/{Mathf.Max(1, totalPlayers)} listos";
-            }
-
-            if (_tileText != null)
-            {
-                var tileType = gameManager.GetTileTypeAtPosition(localData.BoardPosition);
-                _tileText.text = BuildMinigameTileText(localData.BoardPosition, tileType);
-            }
-
-            if (_waterText != null)
-            {
-                _waterText.text = BuildMinigameWaterText(localData.WaterAmount);
-            }
-
-            if (_moneyText != null)
-            {
-                _moneyText.text = BuildMinigameMoneyText(localData.MoneyAmount);
-            }
-
-            if (_minigameReadyButton != null)
-            {
-                _minigameReadyButton.interactable = !localData.IsReadyForMinigame;
-            }
         }
 
-        private void InitializeMinigameReadyPlayerStatus()
+        private void RefreshVictoryPanel(NetworkRunner runner)
         {
-            RefreshMinigameReadyPlayerStatus(null);
+            EnsureVictoryUIController();
+            _victoryUIController?.RefreshVictoryPanel(runner);
         }
 
-        private void RefreshMinigameReadyPlayerStatus(NetworkRunner runner)
+        private void InitializeGameLobbyStatus()
+        {
+            RefreshGameLobbyStatus(null);
+        }
+
+        private void RefreshGameLobbyStatus(NetworkRunner runner)
         {
             var gameManager = Networking.Managers.GameManager.Instance;
             var localData = runner != null && gameManager != null
@@ -586,184 +458,27 @@ namespace Networking.UI
 
             if (_tileText != null)
             {
-                _tileText.text = BuildMinigameTileText(boardPosition, tileType);
+                _tileText.text = BuildGameLobbyTileText(boardPosition, tileType);
             }
 
             if (_waterText != null)
             {
-                _waterText.text = BuildMinigameWaterText(waterAmount);
+                _waterText.text = $"{waterAmount}";
             }
 
             if (_moneyText != null)
             {
-                _moneyText.text = BuildMinigameMoneyText(moneyAmount);
+                _moneyText.text = $"{moneyAmount}";
             }
-        }
-
-        private bool _victoryShown;
-
-        private void RefreshVictoryPanel(NetworkRunner runner)
-        {
-            if (_victoryPanel == null || _victoryShown) return;
-
-            var gm = Networking.Managers.GameManager.Instance;
-            if (gm == null) return;
-
-            var localData = gm.GetPlayerData(runner.LocalPlayer, runner);
-            if (localData == null || !localData.IsGameOver) return;
-
-            _victoryShown = true;
-
-            // Hide other panels
-            if (_minigameReadyPanel != null) _minigameReadyPanel.SetActive(false);
-            if (_rollDiceButton != null) _rollDiceButton.interactable = false;
-            if (_openVuforiaButton != null) _openVuforiaButton.interactable = false;
-
-            if (localData.IsDefeat)
-            {
-                PopulateDefeatMessage();
-            }
-            else
-            {
-                PopulateVictoryRanking(runner, gm);
-            }
-
-            _victoryPanel.SetActive(true);
-            Debug.Log($"[LobbyCanvas] {(localData.IsDefeat ? "Defeat" : "Victory")} panel shown.");
         }
 
         private void RefreshProjectDecisionUI(NetworkRunner runner)
         {
-            var gameManager = Networking.Managers.GameManager.Instance;
-            var localData = gameManager?.GetPlayerData(runner.LocalPlayer, runner);
-
-            bool isAwaitingProjectScan = localData != null && localData.IsAwaitingProjectScan;
-            bool isAwaitingProjectDecision = localData != null && localData.IsAwaitingProjectDecision;
-            bool isAwaitingCardScan = localData != null && localData.IsAwaitingCardScan;
-            bool projectFlowActive = isAwaitingProjectScan || isAwaitingProjectDecision;
-
-            // Track flow visibility for close-button handling only.
-            _projectFlowVisible = projectFlowActive || isAwaitingCardScan;
-
-            // When the scan has been completed (host pushed a pending project) and the
-            // Vuforia panel is already open, show the decision panel on top of it.
-            // We do NOT auto-open Vuforia here — the player opens it manually via the scan button.
-            if (isAwaitingProjectDecision && _vuforiaPanel != null && _vuforiaPanel.activeSelf
-                && _projectDecisionPanel != null && !_projectDecisionPanel.activeSelf)
-            {
-                _projectDecisionPanel.SetActive(true);
-            }
-
-            // Hide decision panel as soon as the project flow ends.
-            if (!projectFlowActive && _projectDecisionPanel != null && _projectDecisionPanel.activeSelf)
-            {
-                _projectDecisionPanel.SetActive(false);
-                if (_vuforiaPanel != null && _vuforiaPanel.activeSelf)
-                {
-                    CloseVuforiaPanel();
-                }
-            }
-
-            // Auto-close Vuforia when card scan is resolved (host cleared IsAwaitingCardScan).
-            if (!isAwaitingCardScan && _vuforiaPanel != null && _vuforiaPanel.activeSelf && !projectFlowActive)
-            {
-                CloseVuforiaPanel();
-            }
-
-            if (!isAwaitingProjectDecision)
-            {
-                if (_projectDecisionPanel != null)
-                {
-                    _projectDecisionPanel.SetActive(false);
-                }
-                return;
-            }
-
-            if (_projectDecisionPanel != null && !_projectDecisionPanel.activeSelf)
-            {
-                _projectDecisionPanel.SetActive(true);
-            }
-
-            string projectName = localData.PendingProjectName.ToString();
-            if (string.IsNullOrWhiteSpace(projectName))
-            {
-                projectName = $"Project {localData.PendingProjectId}";
-            }
-
-            if (_projectDecisionTitleText != null)
-            {
-                _projectDecisionTitleText.text = projectName;
-            }
-
-            if (_projectDecisionBodyText != null)
-            {
-                var zone = (Networking.Models.ColombiaZone)localData.PendingProjectZone;
-                _projectDecisionBodyText.text =
-                    $"Zone: {zone}\n" +
-                    $"Price: {localData.PendingProjectPrice}\n" +
-                    $"Water / round: {localData.PendingProjectWaterIncome}\n" +
-                    $"Money / round: {localData.PendingProjectMoneyIncome}";
-            }
-
-            if (_projectBuyButton != null)
-            {
-                _projectBuyButton.interactable = localData.MoneyAmount >= localData.PendingProjectPrice;
-            }
-
-            if (_projectDeclineButton != null)
-            {
-                _projectDeclineButton.interactable = true;
-            }
-        }
-
-        private void PopulateVictoryRanking(NetworkRunner runner, Networking.Managers.GameManager gm)
-        {
-            if (_victoryRankingContainer == null || _victoryRankingEntryPrefab == null) return;
-
-            // Clear previous entries
-            foreach (Transform child in _victoryRankingContainer)
-            {
-                Destroy(child.gameObject);
-            }
-
-            // Gather all players sorted by water descending
-            var ranked = runner.ActivePlayers
-                .Select(player => gm.GetPlayerData(player, runner))
-                .Where(data => data != null)
-                .OrderByDescending(data => data.WaterAmount)
-                .ToList();
-
-            for (int i = 0; i < ranked.Count; i++)
-            {
-                var data = ranked[i];
-                var entry = Instantiate(_victoryRankingEntryPrefab, _victoryRankingContainer);
-                entry.name = $"Rank_{i + 1}";
-
-                var label = entry.GetComponent<TextMeshProUGUI>();
-                if (label != null)
-                {
-                    label.text = $"#{i + 1}. {data.Nick} — Water: {data.WaterAmount}";
-                }
-            }
-        }
-
-        private void PopulateDefeatMessage()
-        {
-            if (_victoryRankingContainer == null || _victoryRankingEntryPrefab == null) return;
-
-            foreach (Transform child in _victoryRankingContainer)
-            {
-                Destroy(child.gameObject);
-            }
-
-            var entry = Instantiate(_victoryRankingEntryPrefab, _victoryRankingContainer);
-            entry.name = "DefeatMessage";
-
-            var label = entry.GetComponent<TextMeshProUGUI>();
-            if (label != null)
-            {
-                label.text = "<color=#FF4444><b>Everyone Lost!</b></color>\nThe basin has been destroyed.";
-            }
+            EnsureProjectFlowUIController();
+            _projectFlowUIController?.RefreshProjectDecisionUI(
+                runner,
+                _vuforiaPanel != null && _vuforiaPanel.activeSelf,
+                CloseVuforiaPanel);
         }
 
         private void RefreshBasinHealthImage(NetworkRunner runner)
@@ -805,130 +520,43 @@ namespace Networking.UI
             }
         }
 
-        private void OnVictoryReturnClicked()
-        {
-            Debug.Log("[LobbyCanvas] Victory return button clicked — ending session.");
-            Networking.Managers.GameManager.Instance?.ExitSession();
-        }
-
         public void NotifyDiceRollCompleted()
         {
             _diceRolling = false;
-        }
 
-        private void OnMinigameReadyClicked()
-        {
-            var runner = Networking.Services.FusionNetworkService.LocalRunner
-                         ?? FindFirstObjectByType<NetworkRunner>();
-            if (runner == null)
+            // Show tile info now that the dice has landed.
+            // Some tiles resolve synchronously and advance the turn before DiceUI finishes,
+            // so this must not depend on localData.IsActiveTurn still being true.
+            var runner = Networking.Services.FusionNetworkService.LocalRunner;
+            if (runner != null)
             {
-                Debug.LogError("[LobbyCanvas] NetworkRunner not found for minigame ready request.");
-                return;
-            }
-
-            var localData = Networking.Managers.GameManager.Instance?.GetPlayerData(runner.LocalPlayer, runner);
-            if (localData == null)
-            {
-                Debug.LogError("[LobbyCanvas] Local PlayerSessionData not found for minigame ready request.");
-                return;
-            }
-
-            localData.RPC_RequestMinigameReady();
-
-            if (_minigameReadyButton != null)
-            {
-                _minigameReadyButton.interactable = false;
+                var gm = Networking.Managers.GameManager.Instance;
+                var localData = gm?.GetPlayerData(runner.LocalPlayer, runner);
+                if (localData != null)
+                {
+                    var tileType = gm.GetTileTypeAtPosition(localData.BoardPosition);
+                    ShowTurnNotification($"Casilla {localData.BoardPosition + 1}: {tileType}");
+                }
+                RefreshTurnUI(runner);
             }
         }
 
-        private void OnToggleActiveProjectsClicked()
+        private void ShowTurnNotification(string message)
         {
-            if (_activeProjectsPanel == null)
-            {
-                Debug.LogWarning("[LobbyCanvas] Active projects panel is not assigned.");
-                return;
-            }
+            EnsureAnimationsLogic();
+            _animationsLogic?.ShowTurnNotification(_turnNotificationPanel, _turnNotificationText, message);
+        }
 
-            _activeProjectsPanel.SetActive(!_activeProjectsPanel.activeSelf);
+        private void HideTurnNotification()
+        {
+            EnsureAnimationsLogic();
+            _animationsLogic?.HideTurnNotification(_turnNotificationPanel);
         }
 
         private void RefreshActiveProjectsUI(NetworkRunner runner)
         {
-            if (_projectContainer == null || _projectEntryPrefab == null)
-            {
-                return;
-            }
-
-            var gameManager = Networking.Managers.GameManager.Instance;
-            if (gameManager == null)
-            {
-                return;
-            }
-
-            var localData = gameManager.GetPlayerData(runner.LocalPlayer, runner);
-            if (localData == null)
-            {
-                return;
-            }
-
-            var projectDatabase = Networking.Managers.GameManager.Instance != null
-                ? gameManager.ProjectDatabase
-                : null;
-
-            // Collect occupied slots
-            var slots = new (int id, int zone)[]
-            {
-                (localData.OwnedProjectSlot0Id, localData.OwnedProjectSlot0Zone),
-                (localData.OwnedProjectSlot1Id, localData.OwnedProjectSlot1Zone),
-                (localData.OwnedProjectSlot2Id, localData.OwnedProjectSlot2Zone),
-            };
-
-            // Ensure we have exactly one child entry per occupied slot
-            int slotCount = 0;
-            foreach (var slot in slots)
-            {
-                if (slot.id > 0) slotCount++;
-            }
-
-            // Resize children: add missing, remove extras
-            while (_projectContainer.childCount < slotCount)
-            {
-                Instantiate(_projectEntryPrefab, _projectContainer);
-            }
-
-            while (_projectContainer.childCount > slotCount)
-            {
-                DestroyImmediate(_projectContainer.GetChild(_projectContainer.childCount - 1).gameObject);
-            }
-
-            int entryIndex = 0;
-            foreach (var slot in slots)
-            {
-                if (slot.id <= 0) continue;
-
-                var entryTransform = _projectContainer.GetChild(entryIndex);
-                var label = entryTransform.GetComponentInChildren<TMPro.TextMeshProUGUI>();
-                if (label == null)
-                {
-                    entryIndex++;
-                    continue;
-                }
-
-                string name = $"Project {slot.id}";
-                int water = 0;
-                int money = 0;
-
-                if (projectDatabase != null && projectDatabase.TryGetProject(slot.id, out var projectDef) && projectDef != null)
-                {
-                    name = projectDef.DisplayName;
-                    var (w, m) = projectDef.GetIncomeForZone((Networking.Models.ColombiaZone)slot.zone);
-                    water = w;
-                    money = m;
-                }
-
-                label.text = $"{name}\n+{water} water/round  +{money} money/round";
-                entryIndex++;
-            }
+            EnsureProjectFlowUIController();
+            _projectFlowUIController?.RefreshActiveProjectsUI(runner);
         }
 
         private static string BuildRoundStatusText(Networking.Managers.GameManager gameManager)
@@ -955,22 +583,6 @@ namespace Networking.UI
             return gameManager.State == Networking.Managers.GameManager.GameState.RollOrder
                 ? "<color=#FFFF00><b>Waiting for players to roll</b></color>"
                 : string.Empty;
-        }
-
-        private static string BuildMinigameTileText(int boardPosition, Networking.Services.SliceTileType tileType)
-        {
-            int displayTileNumber = boardPosition + 1;
-            return $"Current tile: {displayTileNumber} ({tileType})";
-        }
-
-        private static string BuildMinigameWaterText(int waterAmount)
-        {
-            return $"{waterAmount}";
-        }
-
-        private static string BuildMinigameMoneyText(int moneyAmount)
-        {
-            return $"{moneyAmount}";
         }
 
         private void RefreshRivalPlayersUI(NetworkRunner runner)
@@ -1149,11 +761,12 @@ namespace Networking.UI
             Nickname = _nickname.text;
             PlayerPrefs.SetString("Nick", Nickname);
 
-            if (_gameMode == GameMode.Host && _loadingPanel != null)
+            EnsureAnimationsLogic();
+            if (_gameMode == GameMode.Host && _animationsLogic?.LoadingPanel != null)
             {
                 if (_initPanel != null)
                     _initPanel.SetActive(false);
-                _loadingPanel.SetActive(true);
+                _animationsLogic.LoadingPanel.SetActive(true);
                 StartLoadingImageAnimation();
             }
 
@@ -1525,7 +1138,8 @@ namespace Networking.UI
             }
 
             // If the player closed the AR panel while a project scan was pending, treat it as a decline.
-            if (_projectFlowVisible)
+            EnsureProjectFlowUIController();
+            if (_projectFlowUIController != null && _projectFlowUIController.IsProjectFlowVisible)
             {
                 var runner = Networking.Services.FusionNetworkService.LocalRunner;
                 if (runner != null)
@@ -1542,40 +1156,6 @@ namespace Networking.UI
                     }
                 }
             }
-        }
-
-        private void OnProjectBuyClicked()
-        {
-            var runner = Networking.Services.FusionNetworkService.LocalRunner;
-            if (runner == null)
-            {
-                return;
-            }
-
-            var localData = Networking.Managers.GameManager.Instance?.GetPlayerData(runner.LocalPlayer, runner);
-            if (localData == null || !localData.IsAwaitingProjectDecision)
-            {
-                return;
-            }
-
-            localData.RPC_RequestBuyPendingProject();
-        }
-
-        private void OnProjectDeclineClicked()
-        {
-            var runner = Networking.Services.FusionNetworkService.LocalRunner;
-            if (runner == null)
-            {
-                return;
-            }
-
-            var localData = Networking.Managers.GameManager.Instance?.GetPlayerData(runner.LocalPlayer, runner);
-            if (localData == null || (!localData.IsAwaitingProjectDecision && !localData.IsAwaitingProjectScan))
-            {
-                return;
-            }
-
-            localData.RPC_RequestDeclinePendingProject();
         }
 
         private async Task LeaveLobbyAsync()
@@ -1599,6 +1179,7 @@ namespace Networking.UI
         private void ResetCanvas(PlayerRef player, NetworkRunner runner)
         {
             Debug.Log("[LobbyCanvas] Canvas reset");
+            HideOpeningPanelImmediate();
 
             _initPanel.SetActive(true);
             _modeButtons.SetActive(true);
@@ -1617,21 +1198,18 @@ namespace Networking.UI
             }
             _lobbyPanel.SetActive(false);
             _gameLobbyPanel.SetActive(false);
-            if (_minigameReadyPanel != null)
-            {
-                _minigameReadyPanel.SetActive(false);
-            }
-            if (_victoryPanel != null)
-            {
-                _victoryPanel.SetActive(false);
-            }
-            if (_projectDecisionPanel != null)
-            {
-                _projectDecisionPanel.SetActive(false);
-            }
-            _projectFlowVisible = false;
-            _victoryShown = false;
-            InitializeMinigameReadyPlayerStatus();
+            EnsureMinigameReadyUIController();
+            _minigameReadyUIController?.HidePanel();
+            EnsureVictoryUIController();
+            _victoryUIController?.HidePanel();
+            EnsureProjectFlowUIController();
+            _projectFlowUIController?.InitializePanels();
+            EnsureVictoryUIController();
+            _victoryUIController?.ResetVictoryState();
+            _shownTurnNotificationThisTurn = false;
+            HideTurnNotification();
+            _minigameReadyUIController?.InitializeStatus();
+            InitializeGameLobbyStatus();
             if (_vuforiaPanel != null)
             {
                 _vuforiaPanel.SetActive(false);
@@ -1649,12 +1227,11 @@ namespace Networking.UI
 
         public void ShowLobbyCanvas(PlayerRef player, NetworkRunner runner)
         {
-            if (_loadingPanel != null && _loadingPanel.activeSelf)
+            EnsureAnimationsLogic();
+            if (_animationsLogic?.LoadingPanel != null && _animationsLogic.LoadingPanel.activeSelf)
             {
-                LeanTween.cancel(_loadingPanel);
-                if (_loadingPanelImage != null)
-                    LeanTween.cancel(_loadingPanelImage.gameObject);
-                _loadingPanel.SetActive(false);
+                _animationsLogic.CancelLoadingPanelAnimation();
+                _animationsLogic.LoadingPanel.SetActive(false);
             }
 
             _initPanel.SetActive(false);
@@ -1678,194 +1255,116 @@ namespace Networking.UI
 
         private void StartLoadingImageAnimation()
         {
-            if (_loadingPanelImage == null) return;
-
-            Vector3 startPos = _loadingPanelImage.anchoredPosition3D;
-            float floatAmount = 18f;
-            float duration   = 1.6f;
-
-            LeanTween.moveLocalY(_loadingPanelImage.gameObject, startPos.y + floatAmount, duration)
-                .setEase(LeanTweenType.easeInOutSine)
-                .setLoopPingPong();
+            EnsureAnimationsLogic();
+            _animationsLogic?.StartLoadingImageAnimation();
         }
 
         private void StartOpeningPanelAnimations()
         {
-            if (_waveImage1 != null)
-                _wave1Coroutine = StartCoroutine(AnimateWave(_waveImage1, 14f, 1.1f, 0f));
-            if (_waveImage2 != null)
-                _wave2Coroutine = StartCoroutine(AnimateWave(_waveImage2, 20f, 0.85f, 1.2f));
-            if (_waveImage3 != null)
-                _wave3Coroutine = StartCoroutine(AnimateWave(_waveImage3, 10f, 1.4f, 2.5f));
-            if (_tapToContinueObject != null)
-                _tapPulseCoroutine = StartCoroutine(PulseTapToContinue(_tapToContinueObject));
-
-            StartOpeningPanelMainTweens();
-        }
-
-        private void StartOpeningPanelMainTweens()
-        {
-            if (_openingWaterdrop != null)
-            {
-                _openingWaterdropStartPos = _openingWaterdrop.anchoredPosition;
-                _openingWaterdropStartScale = _openingWaterdrop.localScale;
-                _openingWaterdropStartZ = _openingWaterdrop.localEulerAngles.z;
-
-                if (_openingWaterdropCanvasGroup == null)
-                {
-                    _openingWaterdropCanvasGroup = _openingWaterdrop.GetComponent<CanvasGroup>();
-                    if (_openingWaterdropCanvasGroup == null)
-                        _openingWaterdropCanvasGroup = _openingWaterdrop.gameObject.AddComponent<CanvasGroup>();
-                }
-
-                LeanTween.cancel(_openingWaterdrop.gameObject);
-                LeanTween.cancel(_openingWaterdropCanvasGroup.gameObject);
-
-                _openingWaterdropCanvasGroup.alpha = 0f;
-
-                LeanTween.alphaCanvas(_openingWaterdropCanvasGroup, 1f, 0.9f)
-                    .setEase(LeanTweenType.easeOutSine);
-
-                LeanTween.moveLocalY(_openingWaterdrop.gameObject, _openingWaterdropStartPos.y + 14f, 1.8f)
-                    .setEase(LeanTweenType.easeInOutSine)
-                    .setLoopPingPong();
-
-                LeanTween.scale(_openingWaterdrop.gameObject, _openingWaterdropStartScale + new Vector3(0.04f, -0.02f, 0f), 1.6f)
-                    .setEase(LeanTweenType.easeInOutSine)
-                    .setLoopPingPong();
-
-                LeanTween.rotateZ(_openingWaterdrop.gameObject, _openingWaterdropStartZ + 3f, 2.2f)
-                    .setEase(LeanTweenType.easeInOutSine)
-                    .setLoopPingPong();
-            }
-
-            if (_openingTitleObject != null && _openingTitle == null)
-            {
-                _openingTitle = _openingTitleObject.GetComponent<RectTransform>();
-            }
-
-            if (_openingTitle != null)
-            {
-                _openingTitleStartPos = _openingTitle.anchoredPosition;
-                _openingTitleStartScale = _openingTitle.localScale;
-
-                if (_openingTitleCanvasGroup == null)
-                {
-                    _openingTitleCanvasGroup = _openingTitle.GetComponent<CanvasGroup>();
-                    if (_openingTitleCanvasGroup == null)
-                        _openingTitleCanvasGroup = _openingTitle.gameObject.AddComponent<CanvasGroup>();
-                }
-
-                LeanTween.cancel(_openingTitle.gameObject);
-                LeanTween.cancel(_openingTitleCanvasGroup.gameObject);
-
-                _openingTitle.anchoredPosition = _openingTitleStartPos + new Vector2(0f, -20f);
-                _openingTitle.localScale = _openingTitleStartScale;
-                _openingTitleCanvasGroup.alpha = 0f;
-
-                Vector2 introFrom = _openingTitle.anchoredPosition;
-                LeanTween.value(_openingTitle.gameObject, 0f, 1f, 0.8f)
-                    .setEase(LeanTweenType.easeOutCubic)
-                    .setOnUpdate((float t) =>
-                    {
-                        if (_openingTitle != null)
-                        {
-                            _openingTitle.anchoredPosition = Vector2.LerpUnclamped(introFrom, _openingTitleStartPos, t);
-                        }
-                    });
-
-                LeanTween.alphaCanvas(_openingTitleCanvasGroup, 1f, 0.8f)
-                    .setEase(LeanTweenType.easeOutSine)
-                    .setOnComplete(() =>
-                    {
-                        if (_openingTitle != null)
-                        {
-                            LeanTween.scale(_openingTitle.gameObject, _openingTitleStartScale * 1.1f, 2f)
-                                .setEase(LeanTweenType.easeInOutSine)
-                                .setLoopPingPong();
-                        }
-                    });
-            }
+            EnsureAnimationsLogic();
+            _animationsLogic?.StartOpeningPanelAnimations();
         }
 
         private void StopOpeningPanelAnimations()
         {
-            if (_wave1Coroutine != null) { StopCoroutine(_wave1Coroutine); _wave1Coroutine = null; }
-            if (_wave2Coroutine != null) { StopCoroutine(_wave2Coroutine); _wave2Coroutine = null; }
-            if (_wave3Coroutine != null) { StopCoroutine(_wave3Coroutine); _wave3Coroutine = null; }
-            if (_tapPulseCoroutine != null) { StopCoroutine(_tapPulseCoroutine); _tapPulseCoroutine = null; }
-
-            if (_openingWaterdrop != null)
-            {
-                LeanTween.cancel(_openingWaterdrop.gameObject);
-                _openingWaterdrop.anchoredPosition = _openingWaterdropStartPos;
-                _openingWaterdrop.localScale = _openingWaterdropStartScale;
-                _openingWaterdrop.localRotation = Quaternion.Euler(0f, 0f, _openingWaterdropStartZ);
-            }
-
-            if (_openingWaterdropCanvasGroup != null)
-            {
-                LeanTween.cancel(_openingWaterdropCanvasGroup.gameObject);
-                _openingWaterdropCanvasGroup.alpha = 1f;
-            }
-
-            if (_openingTitle != null)
-            {
-                LeanTween.cancel(_openingTitle.gameObject);
-                _openingTitle.anchoredPosition = _openingTitleStartPos;
-                _openingTitle.localScale = _openingTitleStartScale;
-            }
-
-            if (_openingTitleCanvasGroup != null)
-            {
-                LeanTween.cancel(_openingTitleCanvasGroup.gameObject);
-                _openingTitleCanvasGroup.alpha = 1f;
-            }
+            EnsureAnimationsLogic();
+            _animationsLogic?.StopOpeningPanelAnimations();
         }
 
         private void CloseOpeningPanel()
         {
-            StopOpeningPanelAnimations();
-
-            _openingPanel.SetActive(false);
-            if (_initPanel != null) _initPanel.SetActive(true);
+            EnsureAnimationsLogic();
+            _animationsLogic?.CloseOpeningPanel(_initPanel);
         }
 
-        private IEnumerator AnimateWave(RectTransform wave, float amplitude, float speed, float phaseOffset)
+        private void HideOpeningPanelImmediate()
         {
-            Vector2 startPos = wave.anchoredPosition;
-            float time = phaseOffset;
-            while (true)
+            EnsureAnimationsLogic();
+            _animationsLogic?.HideOpeningPanelImmediate();
+        }
+
+        private bool ShouldSkipOpeningPanel()
+        {
+            var runner = Networking.Services.FusionNetworkService.LocalRunner;
+            if (runner == null) return false;
+
+            if (FindFirstObjectByType<Networking.Managers.CharacterSelectionManager>() != null)
+                return false;
+
+            var gameManager = Networking.Managers.GameManager.Instance;
+            if (gameManager == null) return false;
+
+            foreach (var player in runner.ActivePlayers)
             {
-                time += Time.deltaTime * speed;
-                wave.anchoredPosition = new Vector2(startPos.x, startPos.y + Mathf.Sin(time) * amplitude);
-                yield return null;
+                var playerData = gameManager.GetPlayerData(player, runner);
+                if (playerData != null && playerData.SelectedCharacterId > 0)
+                    return true;
+            }
+
+            return false;
+        }
+
+        private void EnsureAnimationsLogic()
+        {
+            if (_animationsLogic != null)
+            {
+                return;
+            }
+
+            _animationsLogic = GetComponent<AnimationsLogic>();
+            if (_animationsLogic == null)
+            {
+                _animationsLogic = gameObject.AddComponent<AnimationsLogic>();
+                Debug.Log("[LobbyCanvas] AnimationsLogic component was missing and has been auto-added.");
             }
         }
 
-        private IEnumerator PulseTapToContinue(GameObject obj)
+        private void EnsureVictoryUIController()
         {
-            CanvasGroup group = obj.GetComponent<CanvasGroup>();
-            if (group == null) group = obj.AddComponent<CanvasGroup>();
-            while (true)
+            if (_victoryUIController == null)
             {
-                float t = 0f;
-                while (t < 1f)
+                _victoryUIController = GetComponent<VictoryUIController>();
+                if (_victoryUIController == null)
                 {
-                    t += Time.deltaTime / 2f;
-                    group.alpha = Mathf.Lerp(0f, 1f, t);
-                    yield return null;
+                    _victoryUIController = gameObject.AddComponent<VictoryUIController>();
+                    Debug.Log("[LobbyCanvas] VictoryUIController component was missing and has been auto-added.");
                 }
-                yield return new WaitForSeconds(0.25f);
-                t = 0f;
-                while (t < 1f)
-                {
-                    t += Time.deltaTime / 0.75f;
-                    group.alpha = Mathf.Lerp(1f, 0f, t);
-                    yield return null;
-                }
-                yield return new WaitForSeconds(0.15f);
             }
+
+            EnsureMinigameReadyUIController();
+            _victoryUIController.Configure(
+                _minigameReadyUIController?.Panel,
+                _rollDiceButton,
+                _openVuforiaButton);
+        }
+
+        private void EnsureMinigameReadyUIController()
+        {
+            if (_minigameReadyUIController != null) return;
+
+            _minigameReadyUIController = GetComponent<MinigameReadyUIController>();
+            if (_minigameReadyUIController == null)
+            {
+                _minigameReadyUIController = gameObject.AddComponent<MinigameReadyUIController>();
+                Debug.Log("[LobbyCanvas] MinigameReadyUIController was missing and has been auto-added.");
+            }
+        }
+
+        private void EnsureProjectFlowUIController()
+        {
+            if (_projectFlowUIController != null) return;
+
+            _projectFlowUIController = GetComponent<ProjectFlowUIController>();
+            if (_projectFlowUIController == null)
+            {
+                _projectFlowUIController = gameObject.AddComponent<ProjectFlowUIController>();
+                Debug.Log("[LobbyCanvas] ProjectFlowUIController was missing and has been auto-added.");
+            }
+        }
+
+        private static string BuildGameLobbyTileText(int boardPosition, Networking.Services.SliceTileType tileType)
+        {
+            return $"Current tile: {boardPosition + 1} ({tileType})";
         }
 
         public void UpdateLobbyList(PlayerRef playerRef, NetworkRunner runner)

@@ -973,6 +973,9 @@ namespace Networking.UI
                 _gameLobbyCharacterImage.enabled = selectedCharacterSprite != null;
             }
 
+            EnsureAnimationsLogic();
+            _animationsLogic?.SetTurnNotificationSecondaryImageSprite(selectedCharacterSprite);
+
             if (runner != null)
             {
                 RefreshRivalPlayersUI(runner);

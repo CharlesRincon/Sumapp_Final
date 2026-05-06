@@ -3806,6 +3806,21 @@ MonoBehaviour:
   _openingWaterdrop: {fileID: 82758012}
   _openingTitleObject: {fileID: 2022231901}
   _tapToContinueObject: {fileID: 1040475391}
+  _turnNotificationPrimaryImage: {fileID: 2121335435}
+  _turnNotificationSecondaryImage: {fileID: 178615057}
+  _turnNotificationFadeImage: {fileID: 592962939}
+  _turnNotificationSpinningFadeImage: {fileID: 1705684663}
+  _turnNotificationEnterOffsetX: 420
+  _turnNotificationEntryDuration: 0.45
+  _turnNotificationDriftDistance: 36
+  _turnNotificationExitDistance: 460
+  _turnNotificationExitLeadTime: 0.35
+  _turnNotificationExitDuration: 0.2
+  _turnNotificationSecondaryImageDelay: 0.12
+  _turnNotificationFadeImageDelay: 0.08
+  _turnNotificationFadeDuration: 0.3
+  _turnNotificationSpinningFadeImageDelay: 0.1
+  _turnNotificationSpinDuration: 2.4
   _turnNotificationDuration: 3
 --- !u!114 &480362494
 MonoBehaviour:
@@ -13036,7 +13051,7 @@ RectTransform:
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
   m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 1200, y: 1900}
+  m_SizeDelta: {x: 1900, y: 1900}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &1705684664
 MonoBehaviour:

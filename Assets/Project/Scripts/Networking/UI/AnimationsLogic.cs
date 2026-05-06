@@ -1,6 +1,7 @@
 using System.Collections;
 using TMPro;
 using UnityEngine;
+using UnityEngine.UI;
 
 namespace Networking.UI
 {
@@ -17,6 +18,22 @@ namespace Networking.UI
         [SerializeField] private RectTransform _openingWaterdrop;
         [SerializeField] private GameObject _openingTitleObject;
         [SerializeField] private GameObject _tapToContinueObject;
+        [Space]
+        [SerializeField] private RectTransform _turnNotificationPrimaryImage;
+        [SerializeField] private RectTransform _turnNotificationSecondaryImage;
+        [SerializeField] private RectTransform _turnNotificationFadeImage;
+        [SerializeField] private RectTransform _turnNotificationSpinningFadeImage;
+        [SerializeField] private float _turnNotificationEnterOffsetX = 420f;
+        [SerializeField] private float _turnNotificationEntryDuration = 0.45f;
+        [SerializeField] private float _turnNotificationDriftDistance = 36f;
+        [SerializeField] private float _turnNotificationExitDistance = 460f;
+        [SerializeField] private float _turnNotificationExitLeadTime = 0.35f;
+        [SerializeField] private float _turnNotificationExitDuration = 0.2f;
+        [SerializeField] private float _turnNotificationSecondaryImageDelay = 0.12f;
+        [SerializeField] private float _turnNotificationFadeImageDelay = 0.08f;
+        [SerializeField] private float _turnNotificationFadeDuration = 0.3f;
+        [SerializeField] private float _turnNotificationSpinningFadeImageDelay = 0.1f;
+        [SerializeField] private float _turnNotificationSpinDuration = 2.4f;
         [Space]
         [SerializeField] private float _turnNotificationDuration = 3f;
 
@@ -41,6 +58,18 @@ namespace Networking.UI
         private Vector2 _openingTitleStartPos;
         private Vector3 _openingTitleStartScale;
         private CanvasGroup _openingTitleCanvasGroup;
+
+        private Vector2 _turnNotificationPrimaryImageStartPos;
+        private bool _turnNotificationPrimaryImageCached;
+        private Vector2 _turnNotificationSecondaryImageStartPos;
+        private bool _turnNotificationSecondaryImageCached;
+        private Image _turnNotificationSecondaryImageComponent;
+        private CanvasGroup _turnNotificationPrimaryImageCanvasGroup;
+        private CanvasGroup _turnNotificationSecondaryImageCanvasGroup;
+        private CanvasGroup _turnNotificationFadeImageCanvasGroup;
+        private CanvasGroup _turnNotificationSpinningFadeImageCanvasGroup;
+        private float _turnNotificationSpinningFadeImageStartZ;
+        private bool _turnNotificationSpinningFadeImageCached;
 
         public void StartLoadingImageAnimation()
         {
@@ -212,6 +241,27 @@ namespace Networking.UI
             _openingPanel.SetActive(false);
         }
 
+        public void SetTurnNotificationSecondaryImageSprite(Sprite sprite)
+        {
+            if (_turnNotificationSecondaryImage == null)
+            {
+                return;
+            }
+
+            if (_turnNotificationSecondaryImageComponent == null)
+            {
+                _turnNotificationSecondaryImageComponent = _turnNotificationSecondaryImage.GetComponent<Image>();
+                if (_turnNotificationSecondaryImageComponent == null)
+                {
+                    Debug.LogWarning("[AnimationsLogic] Turn notification secondary image is missing an Image component.");
+                    return;
+                }
+            }
+
+            _turnNotificationSecondaryImageComponent.sprite = sprite;
+            _turnNotificationSecondaryImageComponent.enabled = sprite != null;
+        }
+
         public void ShowTurnNotification(GameObject notificationPanel, TextMeshProUGUI notificationText, string message)
         {
             if (notificationPanel == null) return;
@@ -220,6 +270,10 @@ namespace Networking.UI
                 notificationText.text = message;
 
             notificationPanel.SetActive(true);
+            AnimateTurnNotificationPrimaryImage();
+            AnimateTurnNotificationSecondaryImage();
+            AnimateTurnNotificationFadeImage();
+            AnimateTurnNotificationSpinningFadeImage();
 
             if (_hideNotificationCoroutine != null)
                 StopCoroutine(_hideNotificationCoroutine);
@@ -234,16 +288,364 @@ namespace Networking.UI
                 _hideNotificationCoroutine = null;
             }
 
+            ResetTurnNotificationPrimaryImage();
+            ResetTurnNotificationSecondaryImage();
+            ResetTurnNotificationFadeImage();
+            ResetTurnNotificationSpinningFadeImage();
+
             if (notificationPanel != null)
                 notificationPanel.SetActive(false);
         }
 
         private IEnumerator HideNotificationAfterDelay(GameObject notificationPanel, float duration)
         {
-            yield return new WaitForSeconds(duration);
+            if (duration > 0f)
+            {
+                yield return new WaitForSeconds(duration);
+            }
+
+            ResetTurnNotificationPrimaryImage();
+            ResetTurnNotificationSecondaryImage();
+            ResetTurnNotificationFadeImage();
+            ResetTurnNotificationSpinningFadeImage();
             if (notificationPanel != null)
                 notificationPanel.SetActive(false);
             _hideNotificationCoroutine = null;
+        }
+
+        private void AnimateTurnNotificationPrimaryImage()
+        {
+            CacheTurnNotificationPrimaryImageStartPos();
+            AnimateTurnNotificationImage(_turnNotificationPrimaryImage, _turnNotificationPrimaryImageStartPos, 0f, ref _turnNotificationPrimaryImageCanvasGroup);
+        }
+
+        private void AnimateTurnNotificationSecondaryImage()
+        {
+            CacheTurnNotificationSecondaryImageStartPos();
+            AnimateTurnNotificationImage(_turnNotificationSecondaryImage, _turnNotificationSecondaryImageStartPos, _turnNotificationSecondaryImageDelay, ref _turnNotificationSecondaryImageCanvasGroup);
+        }
+
+        private void AnimateTurnNotificationFadeImage()
+        {
+            var canvasGroup = GetTurnNotificationFadeImageCanvasGroup();
+            if (canvasGroup == null)
+            {
+                return;
+            }
+
+            LeanTween.cancel(canvasGroup.gameObject);
+            canvasGroup.alpha = 0f;
+
+            LeanTween.delayedCall(canvasGroup.gameObject, _turnNotificationFadeImageDelay, () =>
+            {
+                if (canvasGroup == null)
+                {
+                    return;
+                }
+
+                LeanTween.alphaCanvas(canvasGroup, 1f, _turnNotificationFadeDuration)
+                    .setEase(LeanTweenType.easeOutSine);
+            });
+
+            float fadeOutDelay = Mathf.Max(
+                _turnNotificationFadeImageDelay,
+                _turnNotificationDuration - _turnNotificationFadeDuration);
+            LeanTween.delayedCall(canvasGroup.gameObject, fadeOutDelay, () =>
+            {
+                if (canvasGroup == null)
+                {
+                    return;
+                }
+
+                LeanTween.cancel(canvasGroup.gameObject);
+                LeanTween.alphaCanvas(canvasGroup, 0f, _turnNotificationFadeDuration)
+                    .setEase(LeanTweenType.easeInSine);
+            });
+        }
+
+        private void AnimateTurnNotificationSpinningFadeImage()
+        {
+            var canvasGroup = GetTurnNotificationSpinningFadeImageCanvasGroup();
+            if (canvasGroup == null || _turnNotificationSpinningFadeImage == null)
+            {
+                return;
+            }
+
+            CacheTurnNotificationSpinningFadeImageState();
+
+            LeanTween.cancel(canvasGroup.gameObject);
+            LeanTween.cancel(_turnNotificationSpinningFadeImage.gameObject);
+            canvasGroup.alpha = 0f;
+            _turnNotificationSpinningFadeImage.localRotation = Quaternion.Euler(0f, 0f, _turnNotificationSpinningFadeImageStartZ);
+
+            LeanTween.delayedCall(canvasGroup.gameObject, _turnNotificationSpinningFadeImageDelay, () =>
+            {
+                if (canvasGroup == null || _turnNotificationSpinningFadeImage == null)
+                {
+                    return;
+                }
+
+                LeanTween.alphaCanvas(canvasGroup, 1f, _turnNotificationFadeDuration)
+                    .setEase(LeanTweenType.easeOutSine);
+
+                LeanTween.value(
+                    _turnNotificationSpinningFadeImage.gameObject,
+                    0f,
+                    -360f,
+                    _turnNotificationSpinDuration)
+                    .setEase(LeanTweenType.linear)
+                    .setRepeat(-1)
+                    .setOnUpdate((float angle) =>
+                    {
+                        if (_turnNotificationSpinningFadeImage != null)
+                        {
+                            _turnNotificationSpinningFadeImage.localRotation = Quaternion.Euler(
+                                0f,
+                                0f,
+                                _turnNotificationSpinningFadeImageStartZ + angle);
+                        }
+                    });
+            });
+
+            float fadeOutDelay = Mathf.Max(
+                _turnNotificationSpinningFadeImageDelay,
+                _turnNotificationDuration - _turnNotificationFadeDuration);
+            LeanTween.delayedCall(canvasGroup.gameObject, fadeOutDelay, () =>
+            {
+                if (canvasGroup == null || _turnNotificationSpinningFadeImage == null)
+                {
+                    return;
+                }
+
+                LeanTween.alphaCanvas(canvasGroup, 0f, _turnNotificationFadeDuration)
+                    .setEase(LeanTweenType.easeInSine);
+            });
+        }
+
+        private void ResetTurnNotificationPrimaryImage()
+        {
+            if (_turnNotificationPrimaryImage == null)
+            {
+                return;
+            }
+
+            CacheTurnNotificationPrimaryImageStartPos();
+            var canvasGroup = GetOrAddCanvasGroup(_turnNotificationPrimaryImage, ref _turnNotificationPrimaryImageCanvasGroup);
+            if (canvasGroup != null)
+            {
+                LeanTween.cancel(canvasGroup.gameObject);
+                canvasGroup.alpha = 0f;
+            }
+            LeanTween.cancel(_turnNotificationPrimaryImage.gameObject);
+            _turnNotificationPrimaryImage.anchoredPosition = _turnNotificationPrimaryImageStartPos;
+        }
+
+        private void ResetTurnNotificationSecondaryImage()
+        {
+            if (_turnNotificationSecondaryImage == null)
+            {
+                return;
+            }
+
+            CacheTurnNotificationSecondaryImageStartPos();
+            var canvasGroup = GetOrAddCanvasGroup(_turnNotificationSecondaryImage, ref _turnNotificationSecondaryImageCanvasGroup);
+            if (canvasGroup != null)
+            {
+                LeanTween.cancel(canvasGroup.gameObject);
+                canvasGroup.alpha = 0f;
+            }
+            LeanTween.cancel(_turnNotificationSecondaryImage.gameObject);
+            _turnNotificationSecondaryImage.anchoredPosition = _turnNotificationSecondaryImageStartPos;
+        }
+
+        private void ResetTurnNotificationFadeImage()
+        {
+            var canvasGroup = GetTurnNotificationFadeImageCanvasGroup();
+            if (canvasGroup == null)
+            {
+                return;
+            }
+
+            LeanTween.cancel(canvasGroup.gameObject);
+            canvasGroup.alpha = 0f;
+        }
+
+        private void ResetTurnNotificationSpinningFadeImage()
+        {
+            var canvasGroup = GetTurnNotificationSpinningFadeImageCanvasGroup();
+            if (canvasGroup == null || _turnNotificationSpinningFadeImage == null)
+            {
+                return;
+            }
+
+            CacheTurnNotificationSpinningFadeImageState();
+            LeanTween.cancel(canvasGroup.gameObject);
+            LeanTween.cancel(_turnNotificationSpinningFadeImage.gameObject);
+            canvasGroup.alpha = 0f;
+            _turnNotificationSpinningFadeImage.localRotation = Quaternion.Euler(0f, 0f, _turnNotificationSpinningFadeImageStartZ);
+        }
+
+        private void CacheTurnNotificationPrimaryImageStartPos()
+        {
+            if (_turnNotificationPrimaryImageCached || _turnNotificationPrimaryImage == null)
+            {
+                return;
+            }
+
+            _turnNotificationPrimaryImageStartPos = _turnNotificationPrimaryImage.anchoredPosition;
+            _turnNotificationPrimaryImageCached = true;
+        }
+
+        private void CacheTurnNotificationSecondaryImageStartPos()
+        {
+            if (_turnNotificationSecondaryImageCached || _turnNotificationSecondaryImage == null)
+            {
+                return;
+            }
+
+            _turnNotificationSecondaryImageStartPos = _turnNotificationSecondaryImage.anchoredPosition;
+            _turnNotificationSecondaryImageCached = true;
+        }
+
+        private CanvasGroup GetTurnNotificationFadeImageCanvasGroup()
+        {
+            if (_turnNotificationFadeImage == null)
+            {
+                return null;
+            }
+
+            if (_turnNotificationFadeImageCanvasGroup == null)
+            {
+                _turnNotificationFadeImageCanvasGroup = _turnNotificationFadeImage.GetComponent<CanvasGroup>();
+                if (_turnNotificationFadeImageCanvasGroup == null)
+                {
+                    _turnNotificationFadeImageCanvasGroup = _turnNotificationFadeImage.gameObject.AddComponent<CanvasGroup>();
+                }
+            }
+
+            return _turnNotificationFadeImageCanvasGroup;
+        }
+
+        private CanvasGroup GetTurnNotificationSpinningFadeImageCanvasGroup()
+        {
+            if (_turnNotificationSpinningFadeImage == null)
+            {
+                return null;
+            }
+
+            if (_turnNotificationSpinningFadeImageCanvasGroup == null)
+            {
+                _turnNotificationSpinningFadeImageCanvasGroup = _turnNotificationSpinningFadeImage.GetComponent<CanvasGroup>();
+                if (_turnNotificationSpinningFadeImageCanvasGroup == null)
+                {
+                    _turnNotificationSpinningFadeImageCanvasGroup = _turnNotificationSpinningFadeImage.gameObject.AddComponent<CanvasGroup>();
+                }
+            }
+
+            return _turnNotificationSpinningFadeImageCanvasGroup;
+        }
+
+        private void CacheTurnNotificationSpinningFadeImageState()
+        {
+            if (_turnNotificationSpinningFadeImageCached || _turnNotificationSpinningFadeImage == null)
+            {
+                return;
+            }
+
+            _turnNotificationSpinningFadeImageStartZ = _turnNotificationSpinningFadeImage.localEulerAngles.z;
+            _turnNotificationSpinningFadeImageCached = true;
+        }
+
+        private void AnimateTurnNotificationImage(RectTransform image, Vector2 restPos, float startDelay, ref CanvasGroup canvasGroupCache)
+        {
+            if (image == null)
+            {
+                return;
+            }
+
+            var canvasGroup = GetOrAddCanvasGroup(image, ref canvasGroupCache);
+            LeanTween.cancel(image.gameObject);
+            if (canvasGroup != null)
+            {
+                LeanTween.cancel(canvasGroup.gameObject);
+                canvasGroup.alpha = 0f;
+            }
+
+            Vector2 enterFromPos = restPos + new Vector2(_turnNotificationEnterOffsetX, 0f);
+            Vector2 driftPos = restPos + Vector2.left * _turnNotificationDriftDistance;
+            Vector2 exitPos = driftPos + Vector2.left * _turnNotificationExitDistance;
+
+            LeanTween.delayedCall(image.gameObject, startDelay, () =>
+            {
+                if (image == null)
+                {
+                    return;
+                }
+
+                image.anchoredPosition = enterFromPos;
+
+                if (canvasGroup != null)
+                {
+                    LeanTween.alphaCanvas(canvasGroup, 1f, _turnNotificationFadeDuration)
+                        .setEase(LeanTweenType.easeOutSine);
+                }
+
+                LeanTween.move(image, restPos, _turnNotificationEntryDuration)
+                    .setEase(LeanTweenType.easeOutCubic)
+                    .setOnComplete(() =>
+                    {
+                        if (image == null)
+                        {
+                            return;
+                        }
+
+                        float driftDuration = Mathf.Max(0f, _turnNotificationDuration - _turnNotificationExitLeadTime - _turnNotificationEntryDuration - startDelay);
+                        if (driftDuration > 0f)
+                        {
+                            LeanTween.move(image, driftPos, driftDuration)
+                                .setEase(LeanTweenType.linear);
+                        }
+                    });
+            });
+
+            float exitDelay = Mathf.Max(startDelay, _turnNotificationDuration - _turnNotificationExitLeadTime);
+            LeanTween.delayedCall(image.gameObject, exitDelay, () =>
+            {
+                if (image == null)
+                {
+                    return;
+                }
+
+                LeanTween.cancel(image.gameObject);
+                LeanTween.move(image, exitPos, _turnNotificationExitDuration)
+                    .setEase(LeanTweenType.easeInCubic);
+
+                if (canvasGroup != null)
+                {
+                    LeanTween.cancel(canvasGroup.gameObject);
+                    LeanTween.alphaCanvas(canvasGroup, 0f, _turnNotificationFadeDuration)
+                        .setEase(LeanTweenType.easeInSine);
+                }
+            });
+        }
+
+        private CanvasGroup GetOrAddCanvasGroup(RectTransform image, ref CanvasGroup canvasGroupCache)
+        {
+            if (image == null)
+            {
+                return null;
+            }
+
+            if (canvasGroupCache == null)
+            {
+                canvasGroupCache = image.GetComponent<CanvasGroup>();
+                if (canvasGroupCache == null)
+                {
+                    canvasGroupCache = image.gameObject.AddComponent<CanvasGroup>();
+                }
+            }
+
+            return canvasGroupCache;
         }
 
         private IEnumerator AnimateWave(RectTransform wave, float amplitude, float speed, float phaseOffset)

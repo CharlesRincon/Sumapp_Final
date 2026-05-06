@@ -63,7 +63,10 @@ namespace Networking.UI
         private bool _turnNotificationPrimaryImageCached;
         private Vector2 _turnNotificationSecondaryImageStartPos;
         private bool _turnNotificationSecondaryImageCached;
+        private Image _turnNotificationPrimaryImageComponent;
         private Image _turnNotificationSecondaryImageComponent;
+        private Image _turnNotificationFadeImageComponent;
+        private Image _turnNotificationSpinningFadeImageComponent;
         private CanvasGroup _turnNotificationPrimaryImageCanvasGroup;
         private CanvasGroup _turnNotificationSecondaryImageCanvasGroup;
         private CanvasGroup _turnNotificationFadeImageCanvasGroup;
@@ -260,6 +263,13 @@ namespace Networking.UI
 
             _turnNotificationSecondaryImageComponent.sprite = sprite;
             _turnNotificationSecondaryImageComponent.enabled = sprite != null;
+        }
+
+        public void SetTurnNotificationAccentColor(Color color)
+        {
+            ApplyImageColor(_turnNotificationPrimaryImage, ref _turnNotificationPrimaryImageComponent, color);
+            ApplyImageColor(_turnNotificationFadeImage, ref _turnNotificationFadeImageComponent, color);
+            ApplyImageColor(_turnNotificationSpinningFadeImage, ref _turnNotificationSpinningFadeImageComponent, color);
         }
 
         public void ShowTurnNotification(GameObject notificationPanel, TextMeshProUGUI notificationText, string message)
@@ -646,6 +656,27 @@ namespace Networking.UI
             }
 
             return canvasGroupCache;
+        }
+
+        private void ApplyImageColor(RectTransform imageRect, ref Image imageComponent, Color color)
+        {
+            if (imageRect == null)
+            {
+                return;
+            }
+
+            if (imageComponent == null)
+            {
+                imageComponent = imageRect.GetComponent<Image>();
+                if (imageComponent == null)
+                {
+                    Debug.LogWarning($"[AnimationsLogic] {imageRect.name} is missing an Image component.");
+                    return;
+                }
+            }
+
+            float alpha = imageComponent.color.a;
+            imageComponent.color = new Color(color.r, color.g, color.b, alpha);
         }
 
         private IEnumerator AnimateWave(RectTransform wave, float amplitude, float speed, float phaseOffset)

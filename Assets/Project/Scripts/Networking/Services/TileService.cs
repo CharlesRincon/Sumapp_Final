@@ -1,3 +1,5 @@
+using UnityEngine;
+
 namespace Networking.Services
 {
     public enum SliceTileType
@@ -37,6 +39,14 @@ namespace Networking.Services
                 return Networking.Models.ColombiaZone.Andean;
 
             return _config.GetZone(boardPosition);
+        }
+
+        public Color GetTileColor(int boardPosition)
+        {
+            if (_config == null)
+                return Color.white;
+
+            return _config.GetTileColor(boardPosition);
         }
 
         public int ResolveHydricWaterDelta(int hydricGain)

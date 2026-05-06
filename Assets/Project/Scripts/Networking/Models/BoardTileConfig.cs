@@ -29,6 +29,14 @@ namespace Networking.Models
             ColombiaZone.Pacific, ColombiaZone.Orinoquia, ColombiaZone.Amazon, ColombiaZone.Insular
         };
 
+        [Header("Tile Colors")]
+        [SerializeField] private Color _startTileColor = Color.white;
+        [SerializeField] private Color _hydricTileColor = new Color(0.27f, 0.72f, 0.95f, 1f);
+        [SerializeField] private Color _catastrophicTileColor = new Color(0.95f, 0.33f, 0.27f, 1f);
+        [SerializeField] private Color _projectTileColor = new Color(1f, 0.72f, 0.2f, 1f);
+        [SerializeField] private Color _drawCardTileColor = new Color(0.65f, 0.45f, 0.95f, 1f);
+        [SerializeField] private Color _triviaTileColor = new Color(0.35f, 0.84f, 0.51f, 1f);
+
         public int TileCount => _tiles.Length;
 
         public Networking.Services.SliceTileType GetTileType(int boardPosition)
@@ -47,6 +55,32 @@ namespace Networking.Models
 
             int index = ((boardPosition % _zones.Length) + _zones.Length) % _zones.Length;
             return _zones[index];
+        }
+
+        public Color GetTileColor(int boardPosition)
+        {
+            return GetTileColor(GetTileType(boardPosition));
+        }
+
+        public Color GetTileColor(Networking.Services.SliceTileType tileType)
+        {
+            switch (tileType)
+            {
+                case Networking.Services.SliceTileType.Start:
+                    return _startTileColor;
+                case Networking.Services.SliceTileType.Hydric:
+                    return _hydricTileColor;
+                case Networking.Services.SliceTileType.Catastrophic:
+                    return _catastrophicTileColor;
+                case Networking.Services.SliceTileType.Project:
+                    return _projectTileColor;
+                case Networking.Services.SliceTileType.DrawCard:
+                    return _drawCardTileColor;
+                case Networking.Services.SliceTileType.Trivia:
+                    return _triviaTileColor;
+                default:
+                    return Color.white;
+            }
         }
     }
 }

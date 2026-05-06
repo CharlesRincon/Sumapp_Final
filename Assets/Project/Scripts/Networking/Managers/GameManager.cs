@@ -86,6 +86,11 @@ namespace Networking.Managers
         [SerializeField] private Networking.Models.BoardTileConfig _boardTileConfig;
         [SerializeField] private Networking.Models.ProjectDatabase _projectDatabase;
         [SerializeField] private Networking.Models.CardDatabase _cardDatabase;
+        [SerializeField] private Networking.Models.TriviaDatabase _triviaDatabase;
+        [SerializeField] private int _triviaWaterRewardMin = 2;
+        [SerializeField] private int _triviaWaterRewardMax = 5;
+        [SerializeField] private int _triviaMoneyRewardMin = 1;
+        [SerializeField] private int _triviaMoneyRewardMax = 3;
 
         private Networking.Services.BasinService _basinService;
         private Networking.Services.TileService _tileService;
@@ -283,6 +288,16 @@ namespace Networking.Managers
             }
 
             return _tileService.GetTileZone(boardPosition);
+        }
+
+        public Color GetTileColorAtPosition(int boardPosition)
+        {
+            if (_tileService == null)
+            {
+                return Color.white;
+            }
+
+            return _tileService.GetTileColor(boardPosition);
         }
 
         public void HandleValidatedTurnRoll(PlayerRef player, int diceRoll, NetworkRunner runner)
@@ -490,7 +505,7 @@ namespace Networking.Managers
 
             if (tileType == Networking.Services.SliceTileType.Trivia)
             {
-                return true;
+                return BeginTriviaTileFlow(playerData);
             }
 
             int waterDelta;
@@ -557,6 +572,48 @@ namespace Networking.Managers
             State = GameState.Decision;
             Debug.Log($"[GameManager] Player {playerData.Object.InputAuthority.PlayerId} landed on a Project tile. Waiting for scan.");
             return false;
+        }
+
+        private bool BeginTriviaTileFlow(Networking.Models.PlayerSessionData playerData)
+        {
+            ClearPendingProjectState(playerData);
+            playerData.IsAwaitingTrivia = true;
+            State = GameState.Decision;
+            Debug.Log($"[GameManager] Player {playerData.Object.InputAuthority.PlayerId} landed on Trivia tile. Waiting for answer.");
+            return false;
+        }
+
+        public void HandleTriviaAnswer(PlayerRef player, NetworkRunner runner, bool correct)
+        {
+            if (runner == null || !runner.IsServer) return;
+
+            var playerData = GetPlayerData(player, runner);
+            if (playerData == null || !playerData.IsAwaitingTrivia) return;
+
+            playerData.IsAwaitingTrivia = false;
+
+            if (correct)
+            {
+                bool giveWater = UnityEngine.Random.value < 0.5f;
+                if (giveWater)
+                {
+                    int water = UnityEngine.Random.Range(_triviaWaterRewardMin, _triviaWaterRewardMax + 1);
+                    ApplyWaterDelta(playerData, player, runner, water, respectShield: false);
+                    Debug.Log($"[GameManager] Trivia correct — awarded {water} water to player {player.PlayerId}.");
+                }
+                else
+                {
+                    int money = UnityEngine.Random.Range(_triviaMoneyRewardMin, _triviaMoneyRewardMax + 1);
+                    ApplyMoneyDelta(playerData, player, runner, money, respectShield: false);
+                    Debug.Log($"[GameManager] Trivia correct — awarded {money} money to player {player.PlayerId}.");
+                }
+            }
+            else
+            {
+                Debug.Log($"[GameManager] Trivia incorrect — no reward for player {player.PlayerId}.");
+            }
+
+            AdvanceTurn(runner);
         }
 
         private bool BeginDrawCardTileFlow(Networking.Models.PlayerSessionData playerData)
@@ -822,6 +879,7 @@ namespace Networking.Managers
             data.IsAwaitingProjectScan = false;
             data.IsAwaitingProjectDecision = false;
             data.IsAwaitingCardScan = false;
+            data.IsAwaitingTrivia = false;
         }
 
         private int CountOwnedProjects(Networking.Models.PlayerSessionData data)

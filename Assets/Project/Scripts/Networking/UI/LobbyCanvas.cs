@@ -68,6 +68,7 @@ namespace Networking.UI
         [SerializeField] private VictoryUIController _victoryUIController;
         [SerializeField] private MinigameReadyUIController _minigameReadyUIController;
         [SerializeField] private ProjectFlowUIController _projectFlowUIController;
+        [SerializeField] private TriviaUIController _triviaUIController;
 
         /// <summary>
         /// Character Selection UI panel (set in inspector).
@@ -160,6 +161,8 @@ namespace Networking.UI
             _victoryUIController?.HidePanel();
             EnsureProjectFlowUIController();
             _projectFlowUIController?.InitializePanels();
+            EnsureTriviaUIController();
+            _triviaUIController?.HidePanel();
 
             EnsureMinigameReadyUIController();
             _minigameReadyUIController?.InitializeStatus();
@@ -360,6 +363,8 @@ namespace Networking.UI
                     RefreshGameLobbyStatus(runner);
                     RefreshProjectDecisionUI(runner);
                     RefreshVictoryPanel(runner);
+                    EnsureTriviaUIController();
+                    _triviaUIController?.Refresh(runner, _turnNotificationPanel);
                 }
 
                 if (_gameLobbyPanel != null && _gameLobbyPanel.activeSelf)
@@ -411,6 +416,7 @@ namespace Networking.UI
                 if (isMyTurn && !_shownTurnNotificationThisTurn)
                 {
                     _shownTurnNotificationThisTurn = true;
+                    SetTurnNotificationCharacterAccent(runner);
                     ShowTurnNotification("\u00a1Es tu turno!");
                 }
                 else if (!isMyTurn)
@@ -535,7 +541,8 @@ namespace Networking.UI
                 if (localData != null)
                 {
                     var tileType = gm.GetTileTypeAtPosition(localData.BoardPosition);
-                    ShowTurnNotification($"Casilla {localData.BoardPosition + 1}: {tileType}");
+                    SetTurnNotificationTileAccent(localData.BoardPosition, gm);
+                    ShowTurnNotification(BuildTileNotificationText(tileType));
                 }
                 RefreshTurnUI(runner);
             }
@@ -934,6 +941,8 @@ namespace Networking.UI
         public void UpdateGameLobbyList(PlayerRef playerRef, NetworkRunner runner)
         {
             Sprite selectedCharacterSprite = null;
+            Sprite selectedTurnSprite = null;
+            Color selectedCharacterColor = Color.white;
 
             if (runner != null)
             {
@@ -949,6 +958,8 @@ namespace Networking.UI
                         if (charConfig != null)
                         {
                             selectedCharacterSprite = charConfig.CharacterSprite;
+                            selectedTurnSprite = charConfig.TurnImage != null ? charConfig.TurnImage : charConfig.CharacterSprite;
+                            selectedCharacterColor = charConfig.CharacterColor;
                             Debug.Log($"[LobbyCanvas] Character sprite found for: {charConfig.CharacterName}");
                         }
                         else
@@ -974,7 +985,8 @@ namespace Networking.UI
             }
 
             EnsureAnimationsLogic();
-            _animationsLogic?.SetTurnNotificationSecondaryImageSprite(selectedCharacterSprite);
+            _animationsLogic?.SetTurnNotificationSecondaryImageSprite(selectedTurnSprite);
+            _animationsLogic?.SetTurnNotificationAccentColor(selectedCharacterColor);
 
             if (runner != null)
             {
@@ -1207,6 +1219,8 @@ namespace Networking.UI
             _victoryUIController?.HidePanel();
             EnsureProjectFlowUIController();
             _projectFlowUIController?.InitializePanels();
+            EnsureTriviaUIController();
+            _triviaUIController?.HidePanel();
             EnsureVictoryUIController();
             _victoryUIController?.ResetVictoryState();
             _shownTurnNotificationThisTurn = false;
@@ -1365,9 +1379,66 @@ namespace Networking.UI
             }
         }
 
+        private void EnsureTriviaUIController()
+        {
+            if (_triviaUIController != null) return;
+
+            _triviaUIController = GetComponent<TriviaUIController>();
+            if (_triviaUIController == null)
+            {
+                _triviaUIController = gameObject.AddComponent<TriviaUIController>();
+                Debug.Log("[LobbyCanvas] TriviaUIController was missing and has been auto-added.");
+            }
+        }
+
         private static string BuildGameLobbyTileText(int boardPosition, Networking.Services.SliceTileType tileType)
         {
-            return $"Current tile: {boardPosition + 1} ({tileType})";
+            return BuildTileNotificationText(tileType);
+        }
+
+        private static string BuildTileNotificationText(Networking.Services.SliceTileType tileType)
+        {
+            return tileType switch
+            {
+                Networking.Services.SliceTileType.Start => "Casilla de inicio",
+                Networking.Services.SliceTileType.Hydric => "Casilla hídrica",
+                Networking.Services.SliceTileType.Catastrophic => "Casilla de catástrofe",
+                Networking.Services.SliceTileType.Project => "Casilla de proyecto",
+                Networking.Services.SliceTileType.DrawCard => "Casilla de evento",
+                Networking.Services.SliceTileType.Trivia => "Casilla de trivia",
+                _ => "Casilla"
+            };
+        }
+
+        private void SetTurnNotificationCharacterAccent(NetworkRunner runner)
+        {
+            EnsureAnimationsLogic();
+            _animationsLogic?.SetTurnNotificationAccentColor(GetLocalCharacterAccentColor(runner));
+        }
+
+        private void SetTurnNotificationTileAccent(int boardPosition, Networking.Managers.GameManager gameManager)
+        {
+            EnsureAnimationsLogic();
+            Color tileColor = gameManager != null ? gameManager.GetTileColorAtPosition(boardPosition) : Color.white;
+            _animationsLogic?.SetTurnNotificationAccentColor(tileColor);
+        }
+
+        private Color GetLocalCharacterAccentColor(NetworkRunner runner)
+        {
+            if (runner == null)
+            {
+                return Color.white;
+            }
+
+            var gameManager = Networking.Managers.GameManager.Instance;
+            var localPlayerData = gameManager?.GetPlayerData(runner.LocalPlayer, runner);
+            if (localPlayerData == null || localPlayerData.SelectedCharacterId <= 0)
+            {
+                return Color.white;
+            }
+
+            var charConfig = Networking.Managers.CharacterDatabase.Instance?.GetCharacterById(localPlayerData.SelectedCharacterId);
+            return charConfig != null ? charConfig.CharacterColor : Color.white;
         }
 
         public void UpdateLobbyList(PlayerRef playerRef, NetworkRunner runner)

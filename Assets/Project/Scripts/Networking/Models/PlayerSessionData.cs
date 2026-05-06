@@ -142,6 +142,10 @@ namespace Networking.Models
         [Networked]
         public bool IsAwaitingDecisionVote { get; set; }
 
+        /// <summary>True while the player is waiting to answer a trivia question.</summary>
+        [Networked]
+        public bool IsAwaitingTrivia { get; set; }
+
         /// <summary>0 = not yet voted, 1 = chose A, 2 = chose B.</summary>
         [Networked]
         public int PendingDecisionVote { get; set; }
@@ -232,6 +236,18 @@ namespace Networking.Models
             Debug.Log($"[PlayerSessionData.RPC_IncrementMinigameClickCount] Host executing for player {Object.InputAuthority.PlayerId}. Before: {MinigameClickCount}");
             MinigameClickCount++;
             Debug.Log($"[PlayerSessionData.RPC_IncrementMinigameClickCount] After: {MinigameClickCount}");
+        }
+
+        [Rpc(sources: RpcSources.InputAuthority, targets: RpcTargets.StateAuthority, HostMode = RpcHostMode.SourceIsHostPlayer)]
+        public void RPC_RequestTriviaAnswer(bool correct)
+        {
+            if (!Object.HasStateAuthority) return;
+
+            var runner = Runner;
+            var gameManager = Networking.Managers.GameManager.Instance;
+            if (runner == null || gameManager == null) return;
+
+            gameManager.HandleTriviaAnswer(Object.InputAuthority, runner, correct);
         }
 
         [Rpc(sources: RpcSources.InputAuthority, targets: RpcTargets.StateAuthority, HostMode = RpcHostMode.SourceIsHostPlayer)]

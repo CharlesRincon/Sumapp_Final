@@ -24,6 +24,12 @@ namespace Networking.Models
         public Sprite CharacterSprite { get; private set; }
 
         [field: SerializeField]
+        public Sprite TurnImage { get; private set; }
+
+        [field: SerializeField]
+        public Color CharacterColor { get; private set; } = Color.white;
+
+        [field: SerializeField]
         public NetworkPrefabRef CharacterPrefab { get; private set; }
 
         /// <summary>

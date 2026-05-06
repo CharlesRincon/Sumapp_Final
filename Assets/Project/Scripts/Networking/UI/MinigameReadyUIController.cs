@@ -56,6 +56,7 @@ namespace Networking.UI
                     && !localData.IsAwaitingProjectScan
                     && !localData.IsAwaitingProjectDecision
                     && !localData.IsAwaitingCardScan
+                    && !localData.IsAwaitingTrivia
                     && !isDiceRolling
                     && (turnNotificationPanel == null || !turnNotificationPanel.activeSelf);
 

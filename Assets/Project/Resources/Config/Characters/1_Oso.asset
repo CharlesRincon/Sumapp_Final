@@ -16,6 +16,8 @@ MonoBehaviour:
   <CharacterName>k__BackingField: Andy
   <Description>k__BackingField: Oso
   <CharacterSprite>k__BackingField: {fileID: 21300000, guid: cbebe0171a10fa345972905690b31062, type: 3}
+  <TurnImage>k__BackingField: {fileID: 21300000, guid: 6fdee5436a6db2c48a5e5ce9a0c244e1, type: 3}
+  <CharacterColor>k__BackingField: {r: 0.8117648, g: 0.36862746, b: 0.0627451, a: 1}
   <CharacterPrefab>k__BackingField:
     RawGuidValue: 00000000000000000000000000000000
   <Stats>k__BackingField:

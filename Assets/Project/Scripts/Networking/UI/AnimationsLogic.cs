@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using TMPro;
 using UnityEngine;
@@ -19,6 +20,18 @@ namespace Networking.UI
         [SerializeField] private GameObject _openingTitleObject;
         [SerializeField] private GameObject _tapToContinueObject;
         [Space]
+        [SerializeField] private GameObject[] _initPanelFadeObjects = new GameObject[5];
+        [SerializeField] private float _initPanelFadeInDuration = 0.35f;
+        [SerializeField] private float _initPanelFadeInStagger = 0.06f;
+        [SerializeField] private float _initPanelFadeOutDuration = 0.25f;
+        [SerializeField] private float _initPanelFadeOutStagger = 0.04f;
+        [Space]
+        [SerializeField] private GameObject[] _roomInputsFadeObjects = new GameObject[5];
+        [SerializeField] private float _roomInputsFadeInDuration = 0.35f;
+        [SerializeField] private float _roomInputsFadeInStagger = 0.06f;
+        [SerializeField] private float _roomInputsFadeOutDuration = 0.25f;
+        [SerializeField] private float _roomInputsFadeOutStagger = 0.04f;
+        [Space]
         [SerializeField] private RectTransform _turnNotificationPrimaryImage;
         [SerializeField] private RectTransform _turnNotificationSecondaryImage;
         [SerializeField] private RectTransform _turnNotificationFadeImage;
@@ -36,6 +49,7 @@ namespace Networking.UI
         [SerializeField] private float _turnNotificationSpinDuration = 2.4f;
         [Space]
         [SerializeField] private float _turnNotificationDuration = 3f;
+        [SerializeField] private float _openingPanelFadeOutDuration = 0.35f;
 
         // Read-only access for LobbyCanvas
         public GameObject OpeningPanel => _openingPanel;
@@ -47,6 +61,11 @@ namespace Networking.UI
         private Coroutine _wave3Coroutine;
         private Coroutine _tapPulseCoroutine;
         private Coroutine _hideNotificationCoroutine;
+        private Coroutine _closeOpeningPanelCoroutine;
+        private Coroutine _initPanelFadeCoroutine;
+        private Coroutine _initPanelFadeOutCoroutine;
+        private Coroutine _roomInputsFadeCoroutine;
+        private Coroutine _roomInputsFadeOutCoroutine;
 
         private RectTransform _openingTitle;
 
@@ -58,6 +77,12 @@ namespace Networking.UI
         private Vector2 _openingTitleStartPos;
         private Vector3 _openingTitleStartScale;
         private CanvasGroup _openingTitleCanvasGroup;
+        private CanvasGroup _wave1CanvasGroup;
+        private CanvasGroup _wave2CanvasGroup;
+        private CanvasGroup _wave3CanvasGroup;
+        private CanvasGroup _tapToContinueCanvasGroup;
+        private readonly CanvasGroup[] _initPanelFadeCanvasGroups = new CanvasGroup[5];
+        private readonly CanvasGroup[] _roomInputsFadeCanvasGroups = new CanvasGroup[5];
 
         private Vector2 _turnNotificationPrimaryImageStartPos;
         private bool _turnNotificationPrimaryImageCached;
@@ -73,6 +98,7 @@ namespace Networking.UI
         private CanvasGroup _turnNotificationSpinningFadeImageCanvasGroup;
         private float _turnNotificationSpinningFadeImageStartZ;
         private bool _turnNotificationSpinningFadeImageCached;
+        private bool _isClosingOpeningPanel;
 
         public void StartLoadingImageAnimation()
         {
@@ -96,9 +122,113 @@ namespace Networking.UI
                 LeanTween.cancel(_loadingPanelImage.gameObject);
         }
 
+        public void ShowInitPanel(GameObject initPanel)
+        {
+            if (_initPanelFadeOutCoroutine != null)
+            {
+                StopCoroutine(_initPanelFadeOutCoroutine);
+                _initPanelFadeOutCoroutine = null;
+            }
+
+            if (_initPanelFadeCoroutine != null)
+            {
+                StopCoroutine(_initPanelFadeCoroutine);
+                _initPanelFadeCoroutine = null;
+            }
+
+            ResetInitPanelFadeObjects();
+
+            if (initPanel != null)
+            {
+                initPanel.SetActive(true);
+            }
+
+            _initPanelFadeCoroutine = StartCoroutine(FadeInInitPanelObjects());
+        }
+
+        public void FadeOutInitPanelObjects(Action onComplete)
+        {
+            if (_initPanelFadeCoroutine != null)
+            {
+                StopCoroutine(_initPanelFadeCoroutine);
+                _initPanelFadeCoroutine = null;
+            }
+
+            if (_initPanelFadeOutCoroutine != null)
+            {
+                StopCoroutine(_initPanelFadeOutCoroutine);
+                _initPanelFadeOutCoroutine = null;
+            }
+
+            _initPanelFadeOutCoroutine = StartCoroutine(FadeOutInitPanelObjectsRoutine(onComplete));
+        }
+
+        public void ShowRoomInputsPanel(GameObject roomInputsPanel)
+        {
+            if (_roomInputsFadeOutCoroutine != null)
+            {
+                StopCoroutine(_roomInputsFadeOutCoroutine);
+                _roomInputsFadeOutCoroutine = null;
+            }
+
+            if (_roomInputsFadeCoroutine != null)
+            {
+                StopCoroutine(_roomInputsFadeCoroutine);
+                _roomInputsFadeCoroutine = null;
+            }
+
+            ResetFadeObjects(_roomInputsFadeObjects, _roomInputsFadeCanvasGroups);
+
+            if (roomInputsPanel != null)
+            {
+                roomInputsPanel.SetActive(true);
+            }
+
+            _roomInputsFadeCoroutine = StartCoroutine(FadeInObjectsRoutine(
+                _roomInputsFadeObjects,
+                _roomInputsFadeCanvasGroups,
+                _roomInputsFadeInDuration,
+                _roomInputsFadeInStagger,
+                () => _roomInputsFadeCoroutine = null));
+        }
+
+        public void FadeOutRoomInputsObjects(Action onComplete)
+        {
+            if (_roomInputsFadeCoroutine != null)
+            {
+                StopCoroutine(_roomInputsFadeCoroutine);
+                _roomInputsFadeCoroutine = null;
+            }
+
+            if (_roomInputsFadeOutCoroutine != null)
+            {
+                StopCoroutine(_roomInputsFadeOutCoroutine);
+                _roomInputsFadeOutCoroutine = null;
+            }
+
+            _roomInputsFadeOutCoroutine = StartCoroutine(FadeOutObjectsRoutine(
+                _roomInputsFadeObjects,
+                _roomInputsFadeCanvasGroups,
+                _roomInputsFadeOutDuration,
+                _roomInputsFadeOutStagger,
+                () =>
+                {
+                    _roomInputsFadeOutCoroutine = null;
+                    onComplete?.Invoke();
+                }));
+        }
+
         public void StartOpeningPanelAnimations()
         {
+            if (_closeOpeningPanelCoroutine != null)
+            {
+                StopCoroutine(_closeOpeningPanelCoroutine);
+                _closeOpeningPanelCoroutine = null;
+            }
+
+            _isClosingOpeningPanel = false;
             _openingTitle = _openingTitleObject != null ? _openingTitleObject.GetComponent<RectTransform>() : null;
+            ResetOpeningAnimatedElementsAlpha();
 
             if (_waveImage1 != null)
                 _wave1Coroutine = StartCoroutine(AnimateWave(_waveImage1, 14f, 1.1f, 0f));
@@ -194,10 +324,27 @@ namespace Networking.UI
 
         public void StopOpeningPanelAnimations()
         {
+            if (_closeOpeningPanelCoroutine != null)
+            {
+                StopCoroutine(_closeOpeningPanelCoroutine);
+                _closeOpeningPanelCoroutine = null;
+            }
+
+            _isClosingOpeningPanel = false;
+
             if (_wave1Coroutine != null) { StopCoroutine(_wave1Coroutine); _wave1Coroutine = null; }
             if (_wave2Coroutine != null) { StopCoroutine(_wave2Coroutine); _wave2Coroutine = null; }
             if (_wave3Coroutine != null) { StopCoroutine(_wave3Coroutine); _wave3Coroutine = null; }
             if (_tapPulseCoroutine != null) { StopCoroutine(_tapPulseCoroutine); _tapPulseCoroutine = null; }
+
+            if (_waveImage1 != null)
+                LeanTween.cancel(_waveImage1.gameObject);
+            if (_waveImage2 != null)
+                LeanTween.cancel(_waveImage2.gameObject);
+            if (_waveImage3 != null)
+                LeanTween.cancel(_waveImage3.gameObject);
+            if (_tapToContinueObject != null)
+                LeanTween.cancel(_tapToContinueObject);
 
             if (_openingWaterdrop != null)
             {
@@ -225,16 +372,49 @@ namespace Networking.UI
                 LeanTween.cancel(_openingTitleCanvasGroup.gameObject);
                 _openingTitleCanvasGroup.alpha = 1f;
             }
+
+            if (_wave1CanvasGroup != null)
+            {
+                LeanTween.cancel(_wave1CanvasGroup.gameObject);
+                _wave1CanvasGroup.alpha = 1f;
+            }
+
+            if (_wave2CanvasGroup != null)
+            {
+                LeanTween.cancel(_wave2CanvasGroup.gameObject);
+                _wave2CanvasGroup.alpha = 1f;
+            }
+
+            if (_wave3CanvasGroup != null)
+            {
+                LeanTween.cancel(_wave3CanvasGroup.gameObject);
+                _wave3CanvasGroup.alpha = 1f;
+            }
+
+            if (_tapToContinueCanvasGroup != null)
+            {
+                LeanTween.cancel(_tapToContinueCanvasGroup.gameObject);
+                _tapToContinueCanvasGroup.alpha = 1f;
+            }
         }
 
         public void CloseOpeningPanel(GameObject initPanel)
         {
-            StopOpeningPanelAnimations();
+            if (_isClosingOpeningPanel)
+            {
+                return;
+            }
 
-            if (_openingPanel != null)
-                _openingPanel.SetActive(false);
-            if (initPanel != null)
-                initPanel.SetActive(true);
+            if (_openingPanel == null || !_openingPanel.activeSelf)
+            {
+                if (initPanel != null)
+                {
+                    initPanel.SetActive(true);
+                }
+                return;
+            }
+
+            _closeOpeningPanelCoroutine = StartCoroutine(CloseOpeningPanelRoutine(initPanel));
         }
 
         public void HideOpeningPanelImmediate()
@@ -242,6 +422,189 @@ namespace Networking.UI
             if (_openingPanel == null) return;
             StopOpeningPanelAnimations();
             _openingPanel.SetActive(false);
+        }
+
+        private IEnumerator CloseOpeningPanelRoutine(GameObject initPanel)
+        {
+            _isClosingOpeningPanel = true;
+
+            if (_wave1Coroutine != null) { StopCoroutine(_wave1Coroutine); _wave1Coroutine = null; }
+            if (_wave2Coroutine != null) { StopCoroutine(_wave2Coroutine); _wave2Coroutine = null; }
+            if (_wave3Coroutine != null) { StopCoroutine(_wave3Coroutine); _wave3Coroutine = null; }
+            if (_tapPulseCoroutine != null) { StopCoroutine(_tapPulseCoroutine); _tapPulseCoroutine = null; }
+
+            var wave1 = GetOrAddCanvasGroup(_waveImage1, ref _wave1CanvasGroup);
+            var wave2 = GetOrAddCanvasGroup(_waveImage2, ref _wave2CanvasGroup);
+            var wave3 = GetOrAddCanvasGroup(_waveImage3, ref _wave3CanvasGroup);
+            var drop = GetOrAddCanvasGroup(_openingWaterdrop, ref _openingWaterdropCanvasGroup);
+            var title = GetOrAddCanvasGroup(_openingTitle, ref _openingTitleCanvasGroup);
+            var tap = GetOrAddCanvasGroup(_tapToContinueObject, ref _tapToContinueCanvasGroup);
+
+            FadeCanvasGroupOut(wave1, _openingPanelFadeOutDuration);
+            FadeCanvasGroupOut(wave2, _openingPanelFadeOutDuration);
+            FadeCanvasGroupOut(wave3, _openingPanelFadeOutDuration);
+            FadeCanvasGroupOut(drop, _openingPanelFadeOutDuration);
+            FadeCanvasGroupOut(title, _openingPanelFadeOutDuration);
+            FadeCanvasGroupOut(tap, _openingPanelFadeOutDuration);
+
+            if (_openingPanelFadeOutDuration > 0f)
+            {
+                yield return new WaitForSeconds(_openingPanelFadeOutDuration);
+            }
+
+            StopOpeningPanelAnimations();
+
+            if (_openingPanel != null)
+            {
+                _openingPanel.SetActive(false);
+            }
+
+            ShowInitPanel(initPanel);
+
+            _closeOpeningPanelCoroutine = null;
+        }
+
+        private IEnumerator FadeInInitPanelObjects()
+        {
+            return FadeInObjectsRoutine(
+                _initPanelFadeObjects,
+                _initPanelFadeCanvasGroups,
+                _initPanelFadeInDuration,
+                _initPanelFadeInStagger,
+                () => _initPanelFadeCoroutine = null);
+        }
+
+        private IEnumerator FadeInObjectsRoutine(GameObject[] fadeObjects, CanvasGroup[] canvasGroups, float fadeDuration, float fadeStagger, Action onComplete)
+        {
+            float previousDelay = 0f;
+            float maxDelayUsed = 0f;
+
+            for (int i = 0; i < fadeObjects.Length; i++)
+            {
+                var canvasGroup = GetOrAddCanvasGroup(fadeObjects[i], ref canvasGroups[i]);
+                if (canvasGroup == null || !canvasGroup.gameObject.activeInHierarchy)
+                {
+                    continue;
+                }
+
+                LeanTween.cancel(canvasGroup.gameObject);
+                canvasGroup.alpha = 0f;
+
+                float delay = fadeStagger * i;
+                maxDelayUsed = Mathf.Max(maxDelayUsed, delay);
+                if (delay > previousDelay)
+                {
+                    yield return new WaitForSeconds(delay - previousDelay);
+                    previousDelay = delay;
+                }
+
+                LeanTween.alphaCanvas(canvasGroup, 1f, fadeDuration)
+                    .setEase(LeanTweenType.easeOutSine);
+            }
+
+            float totalDuration = fadeDuration + maxDelayUsed;
+            if (totalDuration > previousDelay)
+            {
+                yield return new WaitForSeconds(totalDuration - previousDelay);
+            }
+
+            onComplete?.Invoke();
+        }
+
+        private IEnumerator FadeOutInitPanelObjectsRoutine(Action onComplete)
+        {
+            return FadeOutObjectsRoutine(
+                _initPanelFadeObjects,
+                _initPanelFadeCanvasGroups,
+                _initPanelFadeOutDuration,
+                _initPanelFadeOutStagger,
+                () =>
+                {
+                    _initPanelFadeOutCoroutine = null;
+                    onComplete?.Invoke();
+                });
+        }
+
+        private IEnumerator FadeOutObjectsRoutine(GameObject[] fadeObjects, CanvasGroup[] canvasGroups, float fadeDuration, float fadeStagger, Action onComplete)
+        {
+            float previousDelay = 0f;
+            float maxDelayUsed = 0f;
+
+            for (int i = 0; i < fadeObjects.Length; i++)
+            {
+                var canvasGroup = GetOrAddCanvasGroup(fadeObjects[i], ref canvasGroups[i]);
+                if (canvasGroup == null || !canvasGroup.gameObject.activeInHierarchy)
+                {
+                    continue;
+                }
+
+                LeanTween.cancel(canvasGroup.gameObject);
+                canvasGroup.alpha = 1f;
+
+                float delay = fadeStagger * i;
+                maxDelayUsed = Mathf.Max(maxDelayUsed, delay);
+                if (delay > previousDelay)
+                {
+                    yield return new WaitForSeconds(delay - previousDelay);
+                    previousDelay = delay;
+                }
+
+                LeanTween.alphaCanvas(canvasGroup, 0f, fadeDuration)
+                    .setEase(LeanTweenType.easeInSine);
+            }
+
+            float totalDuration = fadeDuration + maxDelayUsed;
+            if (totalDuration > previousDelay)
+            {
+                yield return new WaitForSeconds(totalDuration - previousDelay);
+            }
+
+            onComplete?.Invoke();
+        }
+
+        private void ResetInitPanelFadeObjects()
+        {
+            ResetFadeObjects(_initPanelFadeObjects, _initPanelFadeCanvasGroups);
+        }
+
+        private void ResetFadeObjects(GameObject[] fadeObjects, CanvasGroup[] canvasGroups)
+        {
+            for (int i = 0; i < fadeObjects.Length; i++)
+            {
+                var canvasGroup = GetOrAddCanvasGroup(fadeObjects[i], ref canvasGroups[i]);
+                if (canvasGroup == null)
+                {
+                    continue;
+                }
+
+                LeanTween.cancel(canvasGroup.gameObject);
+                canvasGroup.alpha = 1f;
+            }
+        }
+
+        private void ResetOpeningAnimatedElementsAlpha()
+        {
+            var wave1 = GetOrAddCanvasGroup(_waveImage1, ref _wave1CanvasGroup);
+            var wave2 = GetOrAddCanvasGroup(_waveImage2, ref _wave2CanvasGroup);
+            var wave3 = GetOrAddCanvasGroup(_waveImage3, ref _wave3CanvasGroup);
+            var tap = GetOrAddCanvasGroup(_tapToContinueObject, ref _tapToContinueCanvasGroup);
+
+            if (wave1 != null) wave1.alpha = 1f;
+            if (wave2 != null) wave2.alpha = 1f;
+            if (wave3 != null) wave3.alpha = 1f;
+            if (tap != null) tap.alpha = 1f;
+        }
+
+        private static void FadeCanvasGroupOut(CanvasGroup group, float duration)
+        {
+            if (group == null)
+            {
+                return;
+            }
+
+            LeanTween.cancel(group.gameObject);
+            LeanTween.alphaCanvas(group, 0f, Mathf.Max(0f, duration))
+                .setEase(LeanTweenType.easeInSine);
         }
 
         public void SetTurnNotificationSecondaryImageSprite(Sprite sprite)
@@ -652,6 +1015,25 @@ namespace Networking.UI
                 if (canvasGroupCache == null)
                 {
                     canvasGroupCache = image.gameObject.AddComponent<CanvasGroup>();
+                }
+            }
+
+            return canvasGroupCache;
+        }
+
+        private CanvasGroup GetOrAddCanvasGroup(GameObject target, ref CanvasGroup canvasGroupCache)
+        {
+            if (target == null)
+            {
+                return null;
+            }
+
+            if (canvasGroupCache == null)
+            {
+                canvasGroupCache = target.GetComponent<CanvasGroup>();
+                if (canvasGroupCache == null)
+                {
+                    canvasGroupCache = target.AddComponent<CanvasGroup>();
                 }
             }
 

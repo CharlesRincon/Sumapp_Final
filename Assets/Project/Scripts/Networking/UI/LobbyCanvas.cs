@@ -44,6 +44,7 @@ namespace Networking.UI
         [SerializeField] private TextMeshProUGUI _moneyText;
         [SerializeField] private Button _rollDiceButton;
         [SerializeField] private Button _openVuforiaButton;
+        [SerializeField] private Button _openModelButton;
         [SerializeField] private TextMeshProUGUI _roundStatusText;
         [SerializeField] private TextMeshProUGUI _turnStatusText;
         [SerializeField] private Image _basinHealthImage;
@@ -55,8 +56,10 @@ namespace Networking.UI
         [SerializeField] private TurnOrderPanel _turnOrderPanel;
         [Space]
         [SerializeField] private GameObject _vuforiaPanel;
+        [SerializeField] private GameObject _modelPanel;
         [SerializeField] private GameObject _backgroundImage;
         [SerializeField] private GameObject _vuforiaARCamera;
+        [SerializeField] private ModelViewerController _modelViewerController;
         [Space]
         [SerializeField] private GameObject _modeButtons;
         [SerializeField] private GameObject _roomInputsPanel;
@@ -90,6 +93,10 @@ namespace Networking.UI
 
         private readonly Dictionary<PlayerRef, RivalPlayerCardView> _rivalPlayerCards = new Dictionary<PlayerRef, RivalPlayerCardView>();
         private static bool _openingPanelShownThisAppSession;
+        private bool _isTransitioningToRoomInputs;
+        private bool _initPanelVisualsVisible;
+        private bool _roomInputsVisualsVisible;
+        private bool _isTransitioningFromRoomInputs;
 
         private sealed class RivalPlayerCardView
         {
@@ -148,6 +155,11 @@ namespace Networking.UI
                 _openVuforiaButton.onClick.AddListener(OpenVuforiaPanel);
             }
 
+            if (_openModelButton != null)
+            {
+                _openModelButton.onClick.AddListener(OpenModelPanel);
+            }
+
             // Wire roll dice button if assigned
             if (_rollDiceButton != null)
             {
@@ -193,6 +205,11 @@ namespace Networking.UI
                 _openVuforiaButton.onClick.RemoveListener(OpenVuforiaPanel);
             }
 
+            if (_openModelButton != null)
+            {
+                _openModelButton.onClick.RemoveListener(OpenModelPanel);
+            }
+
             // Wire roll dice button if assigned
             if (_rollDiceButton != null)
             {
@@ -221,7 +238,7 @@ namespace Networking.UI
                 else
                 {
                     HideOpeningPanelImmediate();
-                    if (_initPanel != null) _initPanel.SetActive(true);
+                    ShowInitPanel();
                 }
             }
 
@@ -234,6 +251,11 @@ namespace Networking.UI
         private void Update()
         {
             var runner = Networking.Services.FusionNetworkService.LocalRunner;
+
+            if (ShouldReplayInitPanelFade())
+            {
+                ShowInitPanel();
+            }
 
             if (_animationsLogic?.OpeningPanel != null && _animationsLogic.OpeningPanel.activeSelf)
             {
@@ -353,7 +375,8 @@ namespace Networking.UI
             if (runner != null)
             {
                 bool gameplaySurfaceVisible = (_gameLobbyPanel != null && _gameLobbyPanel.activeSelf)
-                    || (_vuforiaPanel != null && _vuforiaPanel.activeSelf);
+                    || (_vuforiaPanel != null && _vuforiaPanel.activeSelf)
+                    || (_modelPanel != null && _modelPanel.activeSelf);
 
                 if (gameplaySurfaceVisible)
                 {
@@ -729,60 +752,117 @@ namespace Networking.UI
         //Called from button
         public void SetGameMode(int gameMode)
         {
+            if (_isTransitioningToRoomInputs)
+            {
+                return;
+            }
+
             if (Networking.Managers.GameManager.Instance != null)
             {
                 Networking.Managers.GameManager.Instance.SetGameState(Networking.Managers.GameManager.GameState.Lobby);
             }
 
             _gameMode = (GameMode)gameMode;
-            if (_modeButtons != null)
-            {
-                _modeButtons.SetActive(false);
-            }
+            _isTransitioningToRoomInputs = true;
+            _initPanelVisualsVisible = false;
 
-            if (_roomActionText != null)
+            EnsureAnimationsLogic();
+            _animationsLogic?.FadeOutInitPanelObjects(() =>
             {
-                _roomActionText.text = _gameMode == GameMode.Client ? "Entrar a Sala" : "Crear Sala";
-            }
+                if (_modeButtons != null)
+                {
+                    _modeButtons.SetActive(false);
+                }
 
-            if (_roomActionButtonText != null)
-            {
-                _roomActionButtonText.text = _gameMode == GameMode.Client ? "Entrar" : "Crear";
-            }
+                if (_roomActionText != null)
+                {
+                    _roomActionText.text = _gameMode == GameMode.Client ? "Entrar a Sala" : "Crear Sala";
+                }
 
-            var roomInputsRoot = GetRoomInputsRoot();
-            if (roomInputsRoot != null)
+                if (_roomActionButtonText != null)
+                {
+                    _roomActionButtonText.text = _gameMode == GameMode.Client ? "Entrar" : "Crear";
+                }
+
+                var roomInputsRoot = GetRoomInputsRoot();
+                if (roomInputsRoot != null)
+                {
+                    ShowRoomInputsPanel(roomInputsRoot);
+                }
+                else
+                {
+                    Debug.LogWarning("[LobbyCanvas] Room inputs panel is not assigned and nickname parent could not be resolved.");
+                }
+
+                _isTransitioningToRoomInputs = false;
+            });
+
+            if (_animationsLogic == null)
             {
-                roomInputsRoot.SetActive(true);
-            }
-            else
-            {
-                Debug.LogWarning("[LobbyCanvas] Room inputs panel is not assigned and nickname parent could not be resolved.");
+                if (_modeButtons != null)
+                {
+                    _modeButtons.SetActive(false);
+                }
+
+                if (_roomActionText != null)
+                {
+                    _roomActionText.text = _gameMode == GameMode.Client ? "Entrar a Sala" : "Crear Sala";
+                }
+
+                if (_roomActionButtonText != null)
+                {
+                    _roomActionButtonText.text = _gameMode == GameMode.Client ? "Entrar" : "Crear";
+                }
+
+                var roomInputsRoot = GetRoomInputsRoot();
+                if (roomInputsRoot != null)
+                {
+                    ShowRoomInputsPanel(roomInputsRoot);
+                }
+                else
+                {
+                    Debug.LogWarning("[LobbyCanvas] Room inputs panel is not assigned and nickname parent could not be resolved.");
+                }
+
+                _isTransitioningToRoomInputs = false;
             }
         }
 
         //Called from button
         public void StartLauncher()
         {
+            if (_isTransitioningFromRoomInputs)
+            {
+                return;
+            }
+
             Launcher = FindFirstObjectByType<Networking.Managers.GameLauncher>();
             Nickname = _nickname.text;
             PlayerPrefs.SetString("Nick", Nickname);
 
-            EnsureAnimationsLogic();
-            if (_gameMode == GameMode.Host && _animationsLogic?.LoadingPanel != null)
+            var roomInputsRoot = GetRoomInputsRoot();
+            if (roomInputsRoot == null)
             {
-                if (_initPanel != null)
-                    _initPanel.SetActive(false);
-                _animationsLogic.LoadingPanel.SetActive(true);
-                StartLoadingImageAnimation();
+                BeginLauncherFlow();
+                return;
             }
 
-            Launcher.Launch(_gameMode, _room.text);
+            _isTransitioningFromRoomInputs = true;
+            _roomInputsVisualsVisible = false;
 
-            var roomInputsRoot = GetRoomInputsRoot();
-            if (roomInputsRoot != null)
+            EnsureAnimationsLogic();
+            _animationsLogic?.FadeOutRoomInputsObjects(() =>
             {
                 roomInputsRoot.SetActive(false);
+                _isTransitioningFromRoomInputs = false;
+                BeginLauncherFlow();
+            });
+
+            if (_animationsLogic == null)
+            {
+                roomInputsRoot.SetActive(false);
+                _isTransitioningFromRoomInputs = false;
+                BeginLauncherFlow();
             }
         }
 
@@ -1119,58 +1199,107 @@ namespace Networking.UI
             }
         }
 
+        public void OpenModelPanel()
+        {
+            Debug.Log("[LobbyCanvas] Opening model panel...");
+
+            if (_gameLobbyPanel != null)
+            {
+                _gameLobbyPanel.SetActive(false);
+            }
+
+            if (_modelPanel != null)
+            {
+                _modelPanel.SetActive(true);
+            }
+
+            if (_modelViewerController != null)
+            {
+                _modelViewerController.Show();
+                Debug.Log("[LobbyCanvas] ✓ Model panel opened");
+            }
+            else if (_modelPanel == null)
+            {
+                Debug.LogError("[LobbyCanvas] ModelPanel not assigned in inspector!");
+            }
+            else
+            {
+                Debug.LogWarning("[LobbyCanvas] ModelViewerController not assigned in inspector. Showing panel only.");
+            }
+        }
+
         /// <summary>
-        /// Called to return from VuforiaPanel back to GameLobbyPanel and deactivate AR camera.
+        /// Returns from whichever overlay panel is active back to GameLobbyPanel.
+        /// Handles both the Vuforia panel and the model panel.
         /// </summary>
         public void CloseVuforiaPanel()
         {
-            Debug.Log("[LobbyCanvas] Closing Vuforia panel...");
+            Debug.Log("[LobbyCanvas] Closing overlay panel...");
 
-            // Deactivate Vuforia AR Camera
-            if (_vuforiaARCamera != null)
+            bool wasVuforiaOpen = _vuforiaPanel != null && _vuforiaPanel.activeSelf;
+            bool wasModelOpen = _modelPanel != null && _modelPanel.activeSelf;
+
+            if (wasVuforiaOpen && _vuforiaARCamera != null)
             {
                 _vuforiaARCamera.SetActive(false);
                 Debug.Log("[LobbyCanvas] ✓ Vuforia AR Camera deactivated");
             }
 
-            // Hide VuforiaPanel
-            if (_vuforiaPanel != null)
+            if (wasVuforiaOpen)
             {
                 _vuforiaPanel.SetActive(false);
             }
 
-            // Show BackgroundImage
+            if (wasModelOpen)
+            {
+                if (_modelViewerController != null)
+                {
+                    _modelViewerController.Hide();
+                }
+                else if (_modelPanel != null)
+                {
+                    _modelPanel.SetActive(false);
+                }
+            }
+
             if (_backgroundImage != null)
             {
                 _backgroundImage.SetActive(true);
             }
 
-            // Show GameLobbyPanel
             if (_gameLobbyPanel != null)
             {
                 _gameLobbyPanel.SetActive(true);
                 Debug.Log("[LobbyCanvas] ✓ Returned to Game Lobby panel");
             }
 
-            // If the player closed the AR panel while a project scan was pending, treat it as a decline.
-            EnsureProjectFlowUIController();
-            if (_projectFlowUIController != null && _projectFlowUIController.IsProjectFlowVisible)
+            if (wasVuforiaOpen)
             {
-                var runner = Networking.Services.FusionNetworkService.LocalRunner;
-                if (runner != null)
+                // If the player closed the AR panel while a project scan was pending, treat it as a decline.
+                EnsureProjectFlowUIController();
+                if (_projectFlowUIController != null && _projectFlowUIController.IsProjectFlowVisible)
                 {
-                    var localData = Networking.Managers.GameManager.Instance?.GetPlayerData(runner.LocalPlayer, runner);
-                    if (localData != null && (localData.IsAwaitingProjectScan || localData.IsAwaitingProjectDecision))
+                    var runner = Networking.Services.FusionNetworkService.LocalRunner;
+                    if (runner != null)
                     {
-                        localData.RPC_RequestDeclinePendingProject();
-                    }
-                    else if (localData != null && localData.IsAwaitingCardScan)
-                    {
-                        // Closing AR while awaiting a card scan: skip the card and advance the turn.
-                        localData.RPC_RequestSkipCardScan();
+                        var localData = Networking.Managers.GameManager.Instance?.GetPlayerData(runner.LocalPlayer, runner);
+                        if (localData != null && (localData.IsAwaitingProjectScan || localData.IsAwaitingProjectDecision))
+                        {
+                            localData.RPC_RequestDeclinePendingProject();
+                        }
+                        else if (localData != null && localData.IsAwaitingCardScan)
+                        {
+                            // Closing AR while awaiting a card scan: skip the card and advance the turn.
+                            localData.RPC_RequestSkipCardScan();
+                        }
                     }
                 }
             }
+        }
+
+        public void CloseModelPanel()
+        {
+            CloseVuforiaPanel();
         }
 
         private async Task LeaveLobbyAsync()
@@ -1196,13 +1325,17 @@ namespace Networking.UI
             Debug.Log("[LobbyCanvas] Canvas reset");
             HideOpeningPanelImmediate();
 
-            _initPanel.SetActive(true);
+            if (_initPanel != null)
+            {
+                _initPanel.SetActive(true);
+            }
             _modeButtons.SetActive(true);
             var roomInputsRoot = GetRoomInputsRoot();
             if (roomInputsRoot != null)
             {
                 roomInputsRoot.SetActive(false);
             }
+            _roomInputsVisualsVisible = false;
             if (_roomActionText != null)
             {
                 _roomActionText.text = string.Empty;
@@ -1231,6 +1364,14 @@ namespace Networking.UI
             {
                 _vuforiaPanel.SetActive(false);
             }
+            if (_modelViewerController != null)
+            {
+                _modelViewerController.Hide();
+            }
+            else if (_modelPanel != null)
+            {
+                _modelPanel.SetActive(false);
+            }
             if (_vuforiaARCamera != null)
             {
                 _vuforiaARCamera.SetActive(false);
@@ -1240,6 +1381,7 @@ namespace Networking.UI
                 _backgroundImage.SetActive(true);
             }
             _startButton.gameObject.SetActive(runner.IsServer);
+            ShowInitPanel();
         }
 
         public void ShowLobbyCanvas(PlayerRef player, NetworkRunner runner)
@@ -1292,6 +1434,66 @@ namespace Networking.UI
         {
             EnsureAnimationsLogic();
             _animationsLogic?.CloseOpeningPanel(_initPanel);
+        }
+
+        private void ShowInitPanel()
+        {
+            EnsureAnimationsLogic();
+            _animationsLogic?.ShowInitPanel(_initPanel);
+            _initPanelVisualsVisible = true;
+        }
+
+        private void ShowRoomInputsPanel(GameObject roomInputsRoot)
+        {
+            EnsureAnimationsLogic();
+            _animationsLogic?.ShowRoomInputsPanel(roomInputsRoot);
+            _roomInputsVisualsVisible = true;
+        }
+
+        private void BeginLauncherFlow()
+        {
+            EnsureAnimationsLogic();
+            if (_gameMode == GameMode.Host && _animationsLogic?.LoadingPanel != null)
+            {
+                if (_initPanel != null)
+                    _initPanel.SetActive(false);
+                _animationsLogic.LoadingPanel.SetActive(true);
+                StartLoadingImageAnimation();
+            }
+
+            Launcher.Launch(_gameMode, _room.text);
+        }
+
+        private bool ShouldReplayInitPanelFade()
+        {
+            if (_initPanelVisualsVisible || _isTransitioningToRoomInputs)
+            {
+                return false;
+            }
+
+            if (_initPanel == null || !_initPanel.activeSelf)
+            {
+                return false;
+            }
+
+            if ((_animationsLogic?.OpeningPanel != null && _animationsLogic.OpeningPanel.activeSelf)
+                || (_animationsLogic?.LoadingPanel != null && _animationsLogic.LoadingPanel.activeSelf))
+            {
+                return false;
+            }
+
+            if ((_lobbyPanel != null && _lobbyPanel.activeSelf)
+                || (_gameLobbyPanel != null && _gameLobbyPanel.activeSelf)
+                || (_vuforiaPanel != null && _vuforiaPanel.activeSelf)
+                || (_modelPanel != null && _modelPanel.activeSelf))
+            {
+                return false;
+            }
+
+            var roomInputsRoot = GetRoomInputsRoot();
+            bool roomInputsVisible = roomInputsRoot != null && roomInputsRoot.activeSelf;
+            bool modeButtonsVisible = _modeButtons != null && _modeButtons.activeSelf;
+            return modeButtonsVisible && !roomInputsVisible;
         }
 
         private void HideOpeningPanelImmediate()

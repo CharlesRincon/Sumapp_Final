@@ -13,20 +13,23 @@ MonoBehaviour:
   m_Name: Card_1
   m_EditorClassIdentifier: Assembly-CSharp::Networking.Models.CardDefinition
   _cardId: 1
-  _displayName: "Fen\xF3meno del Ni\xF1o"
-  _waterDelta: 0
+  _displayName: Humedal Recuperado
+  _loreText: La comunidad restaura un humedal invadido y devuelve el equilibrio al
+    ecosistema.
+  _effectDescription: La cuenca recupera 5 de salud. Ganas 2 de AGUA.
+  _waterDelta: 2
   _waterDeltaIsPercent: 0
   _moneyDelta: 0
   _moneyDeltaIsPercent: 0
-  _basinDelta: 0
+  _basinDelta: 5
   _diceModifier: 0
   _grantsNegativeShield: 0
-  _allPlayersWaterDelta: -2
+  _allPlayersWaterDelta: 0
   _allPlayersWaterDeltaIsPercent: 0
   _allPlayersMoneyDelta: 0
   _allPlayersMoneyDeltaIsPercent: 0
-  _roundWaterGainPenalty: 20
-  _roundWaterGainPenaltyIsPercent: 1
+  _roundWaterGainPenalty: 0
+  _roundWaterGainPenaltyIsPercent: 0
   _roundMoneyGainPenalty: 0
   _roundMoneyGainPenaltyIsPercent: 0
   _roundProjectMoneyPenalty: 0
@@ -102,4 +105,13 @@ MonoBehaviour:
     IsClimateEvent: 0
     IsDeforestationEvent: 0
     DeforestationProjectMoneyPercentPenalty: 0
-  _climateEffect: -1
+  _conditionalMoneyOnProjects: 0
+  _moneyWithActiveProject: 0
+  _moneyWithoutActiveProject: 0
+  _isWeatherCard: 0
+  _weatherDurationRounds: 0
+  _weatherHydricWaterFlatBonus: 0
+  _weatherAllPlayersWaterPerTurnDelta: 0
+  _weatherProjectMoneyPercentPenalty: 0
+  _weatherApplyBasinDeltaAtRoundEnd: 0
+  _weatherBasinFlatPerRound: 0

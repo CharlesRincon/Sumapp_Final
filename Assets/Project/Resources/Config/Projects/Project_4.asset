@@ -1,0 +1,37 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 644751563e081514390e7a0dc6effb03, type: 3}
+  m_Name: Project_4
+  m_EditorClassIdentifier: Assembly-CSharp::Networking.Models.ProjectDefinition
+  _projectId: 4
+  _displayName: Humedal artificial
+  _price: 6
+  _markerId: 
+  _description: "Al inicio de cada ronda, la cuenca recupera 3%. Si hay un clima
+    positivo activo, la recuperaci\xF3n sube a 5%. Este proyecto no genera recursos
+    directos al jugador, pero al final de la partida otorga 5 de AGUA bonus si la
+    cuenca termin\xF3 por encima del 50%."
+  _baseWaterPerRound: 0
+  _baseMoneyPerRound: 0
+  _zoneEffects: []
+  _passiveBehaviours: 384
+  _basinThresholdForBonus: 0.3
+  _climateEventMoneyBonus: 1
+  _contextualWaterBonusNormal: 1
+  _contextualWaterBonusEnhanced: 2
+  _contextualWaterPenalty: 1
+  _basinRecoveryNormalAmount: 3
+  _basinRecoveryEnhancedAmount: 5
+  _basinLossNormalAmount: 3
+  _basinLossDroughtAmount: 8
+  _endGameWaterBonus: 5
+  _endGameBasinThreshold: 0.5

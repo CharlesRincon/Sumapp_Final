@@ -1,0 +1,37 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 644751563e081514390e7a0dc6effb03, type: 3}
+  m_Name: Project_6
+  m_EditorClassIdentifier: Assembly-CSharp::Networking.Models.ProjectDefinition
+  _projectId: 6
+  _displayName: "Concesi\xF3n minera"
+  _price: 8
+  _markerId: 
+  _description: "Ganas 4 de DINERO por ronda. Sin embargo, la cuenca pierde 3% por
+    ronda mientras este proyecto est\xE9 activo. Durante el clima Fen\xF3meno del
+    Ni\xF1o, el dinero generado sube a 6 de DINERO por ronda por alta demanda, pero
+    la cuenca pierde 5% adicional."
+  _baseWaterPerRound: 0
+  _baseMoneyPerRound: 4
+  _zoneEffects: []
+  _passiveBehaviours: 3072
+  _basinThresholdForBonus: 0.3
+  _climateEventMoneyBonus: 2
+  _contextualWaterBonusNormal: 0
+  _contextualWaterBonusEnhanced: 0
+  _contextualWaterPenalty: 0
+  _basinRecoveryNormalAmount: 0
+  _basinRecoveryEnhancedAmount: 0
+  _basinLossNormalAmount: 3
+  _basinLossDroughtAmount: 8
+  _endGameWaterBonus: 0
+  _endGameBasinThreshold: 0.5

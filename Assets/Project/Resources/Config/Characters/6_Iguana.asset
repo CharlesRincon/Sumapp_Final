@@ -16,7 +16,7 @@ MonoBehaviour:
   <CharacterName>k__BackingField: Iggy
   <Description>k__BackingField: Iguana
   <CharacterSprite>k__BackingField: {fileID: 21300000, guid: b060c291c0314dc4ba1ab6ef513d633f, type: 3}
-  <TurnImage>k__BackingField: {fileID: 21300000, guid: b060c291c0314dc4ba1ab6ef513d633f, type: 3}
+  <TurnImage>k__BackingField: {fileID: 21300000, guid: 1d13d77e1bdbd39419336c3d0a0b2719, type: 3}
   <CharacterColor>k__BackingField: {r: 0.29411766, g: 0.6509804, b: 0.5921569, a: 1}
   <CharacterPrefab>k__BackingField:
     RawGuidValue: 00000000000000000000000000000000

@@ -75,6 +75,9 @@ namespace Networking.Models
 
         [Networked]
         public NetworkString<_32> PendingProjectName { get; set; }
+        
+        [Networked]
+        public NetworkString<_128> PendingProjectDescription { get; set; }
 
         [Networked]
         public int PendingProjectPrice { get; set; }
@@ -96,6 +99,15 @@ namespace Networking.Models
 
         [Networked]
         public bool IsAwaitingCardScan { get; set; }
+
+        [Networked]
+        public NetworkString<_64> PendingCardTitle { get; set; }
+
+        [Networked]
+        public NetworkString<_128> PendingCardLore { get; set; }
+
+        [Networked]
+        public NetworkString<_128> PendingCardEffect { get; set; }
 
         [Networked]
         public int BoardPosition { get; set; }
@@ -150,6 +162,12 @@ namespace Networking.Models
         [Networked]
         public int PendingDecisionVote { get; set; }
 
+        [Networked]
+        public bool DoubleTriviaReward { get; set; }
+
+        [Networked]
+        public bool IsPendingTeleportTileResolution { get; set; }
+
         public FusionEvent OnPlayerDataSpawnedEvent;
 
         private ChangeDetector _changeDetector;
@@ -200,6 +218,33 @@ namespace Networking.Models
         {
             Debug.Log("[PlayerSessionData] RPC_LoadLobbyScene called. Returning to lobby...");
             UnityEngine.SceneManagement.SceneManager.LoadScene("LobbyScene");
+        }
+
+        [Rpc(sources: RpcSources.StateAuthority, targets: RpcTargets.All, HostMode = RpcHostMode.SourceIsHostPlayer)]
+        public void RPC_SyncWeatherRollResult(int roll, int waterDelta, int moneyDelta)
+        {
+            var turnOrderPanel = Networking.UI.TurnOrderPanel.Instance;
+            if (turnOrderPanel == null)
+            {
+                turnOrderPanel = UnityEngine.Object.FindFirstObjectByType<Networking.UI.TurnOrderPanel>();
+            }
+
+            if (turnOrderPanel == null)
+            {
+                var allPanels = UnityEngine.Object.FindObjectsOfType<Networking.UI.TurnOrderPanel>(true);
+                if (allPanels != null && allPanels.Length > 0)
+                {
+                    turnOrderPanel = allPanels[0];
+                }
+            }
+
+            if (turnOrderPanel != null)
+            {
+                turnOrderPanel.ShowWeatherRollResult(roll, waterDelta, moneyDelta);
+                return;
+            }
+
+            Debug.LogWarning("[PlayerSessionData] TurnOrderPanel not found for weather roll display.");
         }
 
         /// <summary>
@@ -356,6 +401,21 @@ namespace Networking.Models
             }
 
             gameManager.HandleDecisionVote(Object.InputAuthority, runner, choice);
+        }
+
+        [Rpc(sources: RpcSources.InputAuthority, targets: RpcTargets.StateAuthority, HostMode = RpcHostMode.SourceIsHostPlayer)]
+        public void RPC_ResolveTeleportLanding()
+        {
+            if (!Object.HasStateAuthority) return;
+
+            var runner = Runner;
+            var gameManager = Networking.Managers.GameManager.Instance;
+            if (runner == null || gameManager == null) return;
+
+            if (!IsPendingTeleportTileResolution) return;
+
+            IsPendingTeleportTileResolution = false;
+            gameManager.HandleTeleportLanding(this, runner);
         }
 
         /// <summary>

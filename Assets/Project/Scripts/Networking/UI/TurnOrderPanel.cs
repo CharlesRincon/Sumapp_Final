@@ -17,6 +17,8 @@ namespace Networking.UI
     /// </summary>
     public class TurnOrderPanel : MonoBehaviour
     {
+        public static TurnOrderPanel Instance { get; private set; }
+
         [SerializeField] private GameObject _panelGameObject;
         [SerializeField] private TextMeshProUGUI _instructionText;
         [SerializeField] private Button _rollButton;
@@ -31,6 +33,25 @@ namespace Networking.UI
         private bool _resultsShown;
         private bool _localPlayerRolled;
         private Coroutine _pollCoroutine;
+        private Coroutine _weatherDisplayCoroutine;
+        private Coroutine _weatherQueueCoroutine;
+        private bool _isWeatherRollPhase;
+        private bool _hasPendingWeatherRoll;
+        private int _pendingWeatherRoll;
+        private int _pendingWeatherWaterDelta;
+        private int _pendingWeatherMoneyDelta;
+
+        private void Awake()
+        {
+            if (Instance != null && Instance != this)
+            {
+                Debug.LogWarning("[TurnOrderPanel] Multiple instances detected. Using the first instance.");
+                return;
+            }
+            Instance = this;
+            if (_panelGameObject == null)
+                _panelGameObject = gameObject;
+        }
 
         private void Start()
         {
@@ -65,6 +86,31 @@ namespace Networking.UI
                 return;
             }
 
+            var lobbyCanvas = FindFirstObjectByType<LobbyCanvas>();
+            if (lobbyCanvas != null && (lobbyCanvas.IsTurnNotificationPanelActive || lobbyCanvas.IsWaitingForTurnNotification))
+            {
+                Debug.Log("[TurnOrderPanel] Turn notification active or pending; delaying turn order phase until animation completes.");
+                if (_weatherQueueCoroutine == null)
+                    _weatherQueueCoroutine = lobbyCanvas.StartCoroutine(DelayTurnOrderPhaseUntilNotificationHidden(lobbyCanvas));
+                return;
+            }
+
+            BeginTurnOrderPhase();
+        }
+
+        private IEnumerator DelayTurnOrderPhaseUntilNotificationHidden(LobbyCanvas lobbyCanvas)
+        {
+            while (lobbyCanvas != null && (lobbyCanvas.IsTurnNotificationPanelActive || lobbyCanvas.IsWaitingForTurnNotification))
+            {
+                yield return null;
+            }
+
+            _weatherQueueCoroutine = null;
+            BeginTurnOrderPhase();
+        }
+
+        private void BeginTurnOrderPhase()
+        {
             _phaseActive = true;
             _resultsShown = false;
             _localPlayerRolled = false;
@@ -95,10 +141,157 @@ namespace Networking.UI
             _phaseActive = false;
         }
 
+        public void ShowWeatherRollResult(int roll, int waterDelta, int moneyDelta)
+        {
+            _pendingWeatherRoll = roll;
+            _pendingWeatherWaterDelta = waterDelta;
+            _pendingWeatherMoneyDelta = moneyDelta;
+            _hasPendingWeatherRoll = true;
+
+            var lobbyCanvas = FindFirstObjectByType<LobbyCanvas>();
+            if (lobbyCanvas != null && (lobbyCanvas.IsTurnNotificationPanelActive || lobbyCanvas.IsWaitingForTurnNotification))
+            {
+                Debug.Log("[TurnOrderPanel] Turn notification active or pending; delaying weather roll display until animation completes.");
+                
+                if (_weatherQueueCoroutine == null)
+                    _weatherQueueCoroutine = lobbyCanvas.StartCoroutine(DelayWeatherRollUntilNotificationHidden(lobbyCanvas));
+
+                return;
+            }
+
+            DisplayWeatherRollResult(roll, waterDelta, moneyDelta);
+        }
+
+        private IEnumerator DelayWeatherRollUntilNotificationHidden(LobbyCanvas lobbyCanvas)
+        {
+            // Wait while the notification is active OR while we are still waiting for it to trigger
+            while (lobbyCanvas != null && (lobbyCanvas.IsTurnNotificationPanelActive || lobbyCanvas.IsWaitingForTurnNotification))
+            {
+                yield return null;
+            }
+
+            _weatherQueueCoroutine = null;
+
+            if (_hasPendingWeatherRoll)
+            {
+                DisplayWeatherRollResult(_pendingWeatherRoll, _pendingWeatherWaterDelta, _pendingWeatherMoneyDelta);
+            }
+        }
+
+        private void DisplayWeatherRollResult(int roll, int waterDelta, int moneyDelta)
+        {
+            if (_panelGameObject == null)
+            {
+                Debug.LogError("[TurnOrderPanel] Panel GameObject not assigned!");
+                return;
+            }
+
+            if (_panelGameObject != null)
+                _panelGameObject.SetActive(true);
+
+            _runner = FindFirstObjectByType<NetworkRunner>();
+            _phaseActive = true;
+            _isWeatherRollPhase = true;
+            _hasPendingWeatherRoll = true;
+            _pendingWeatherRoll = roll;
+            _pendingWeatherWaterDelta = waterDelta;
+            _pendingWeatherMoneyDelta = moneyDelta;
+
+            if (_instructionText != null)
+                _instructionText.text = "Efecto del clima";
+
+            bool canRoll = IsLocalActivePlayerTurn();
+            if (_rollButton != null)
+            {
+                _rollButton.gameObject.SetActive(true);
+                _rollButton.interactable = canRoll;
+            }
+
+            if (_playerRollText != null)
+            {
+                _playerRollText.text = canRoll ? "Pulsa para tirar" : "Esperando al jugador activo...";
+            }
+
+            if (_turnOrderListContainer != null)
+            {
+                foreach (Transform child in _turnOrderListContainer)
+                    Destroy(child.gameObject);
+            }
+        }
+
+        private bool IsLocalActivePlayerTurn()
+        {
+            if (_runner == null)
+                _runner = FindFirstObjectByType<NetworkRunner>();
+
+            if (_runner == null)
+                return false;
+
+            var localData = Networking.Managers.GameManager.Instance?.GetPlayerData(_runner.LocalPlayer, _runner);
+            return localData != null && localData.IsActiveTurn;
+        }
+
+        private IEnumerator CloseWeatherRollPanelAfterDelay()
+        {
+            yield return new WaitForSeconds(Mathf.Max(1f, _resultDisplayDuration));
+
+            if (_panelGameObject != null)
+                _panelGameObject.SetActive(false);
+
+            _phaseActive = false;
+            _isWeatherRollPhase = false;
+            _weatherDisplayCoroutine = null;
+            Debug.Log("[TurnOrderPanel] Weather roll panel closed.");
+        }
+
         private void OnRollButtonPressed()
         {
             if (_isRolling || _localPlayerRolled) return;
-            StartCoroutine(RollCoroutine());
+
+            if (_isWeatherRollPhase)
+            {
+                StartCoroutine(WeatherRollAnimationCoroutine());
+            }
+            else
+            {
+                StartCoroutine(RollCoroutine());
+            }
+        }
+
+        private IEnumerator WeatherRollAnimationCoroutine()
+        {
+            if (!_hasPendingWeatherRoll)
+            {
+                Debug.LogWarning("[TurnOrderPanel] No pending weather roll to animate.");
+                yield break;
+            }
+
+            _isRolling = true;
+            _localPlayerRolled = true;
+            if (_rollButton != null)
+                _rollButton.interactable = false;
+
+            float rollDuration = 2f;
+            float elapsed = 0f;
+
+            while (elapsed < rollDuration)
+            {
+                if (_playerRollText != null)
+                    _playerRollText.text = Random.Range(1, 7).ToString();
+                elapsed += Time.deltaTime;
+                yield return null;
+            }
+
+            if (_playerRollText != null)
+            {
+                string waterText = _pendingWeatherWaterDelta >= 0 ? $"+{_pendingWeatherWaterDelta} AGUA" : $"{_pendingWeatherWaterDelta} AGUA";
+                string moneyText = _pendingWeatherMoneyDelta >= 0 ? $"+{_pendingWeatherMoneyDelta} DINERO" : $"{_pendingWeatherMoneyDelta} DINERO";
+                _playerRollText.text = $"Tirada: {_pendingWeatherRoll}\n{waterText}, {moneyText}";
+            }
+
+            _hasPendingWeatherRoll = false;
+            _weatherDisplayCoroutine = StartCoroutine(CloseWeatherRollPanelAfterDelay());
+            _isRolling = false;
         }
 
         /// <summary>

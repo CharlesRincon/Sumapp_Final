@@ -42,7 +42,7 @@ namespace Networking.UI
         }
 
         /// <summary>Called every frame from LobbyCanvas.Update while game surface is visible.</summary>
-        public void Refresh(NetworkRunner runner, bool isDiceRolling, GameObject turnNotificationPanel)
+        public void Refresh(NetworkRunner runner, bool isDiceRolling, GameObject turnNotificationPanel, bool isVuforiaOpen)
         {
             if (_minigameReadyPanel == null) return;
 
@@ -57,6 +57,7 @@ namespace Networking.UI
                     && !localData.IsAwaitingProjectDecision
                     && !localData.IsAwaitingCardScan
                     && !localData.IsAwaitingTrivia
+                    && !isVuforiaOpen
                     && !isDiceRolling
                     && (turnNotificationPanel == null || !turnNotificationPanel.activeSelf);
 

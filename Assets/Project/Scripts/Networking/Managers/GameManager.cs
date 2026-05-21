@@ -6,6 +6,7 @@ using Fusion;
 using FusionUtilsEvents;
 using System.Threading.Tasks;
 using System.Linq;
+using Networking.Models;
 
 namespace Networking.Managers
 {
@@ -26,6 +27,7 @@ namespace Networking.Managers
         private bool _roundInProgress;
         private int _currentRound;
         private bool _isTurnOrderLocked;
+        private bool _invertTurnOrderNextRound;
         private int _roundWaterGainFlatPenalty;
         private int _roundWaterGainPercentPenalty;
         private int _roundWaterGainFlatBonus;
@@ -45,6 +47,25 @@ namespace Networking.Managers
         private int _pendingDecisionCardId = -1;
         private PlayerRef _pendingDecisionScanningPlayer;
         private Networking.Models.CardDecisionScope _pendingDecisionScope;
+
+        // ── Active weather state (server-side only, reset each match) ──────────
+        private int _activeWeatherCardId = -1;
+        private int _weatherStartRound;
+        private int _weatherDurationRounds;
+        private int _weatherHydricWaterFlatBonus;
+        private int _weatherAllPlayersWaterPerTurnDelta;
+        private int _weatherAllPlayersWaterOnTileResolveDelta;
+        private int _weatherDiceRollFlatBonus;
+        private bool _weatherRollDependentRewards;
+        private int _weatherProjectMoneyPercentPenalty;
+        private bool _weatherApplyBasinDeltaAtRoundEnd;
+        private int _weatherBasinFlatPerRound;
+        private WeatherTag _activeWeatherTag = WeatherTag.None;
+        private int  _weatherProjectMoneyFlatBonusPerRound;
+        private int  _weatherProjectWaterFlatBonusPerRound;
+        private bool _weatherDoubleBasinRecovery;
+        private bool _weatherLockBasin;
+        private bool _weatherNullifyHydricWater;
 
         public int CurrentRound
         {
@@ -112,6 +133,21 @@ namespace Networking.Managers
             Defeat,
             TurnOrderInitialization = RollOrder,
             Playing = PlayerTurn
+        }
+
+        public int ActiveWeatherCardId => _activeWeatherCardId;
+
+        public string ActiveWeatherCardName
+        {
+            get
+            {
+                if (_activeWeatherCardId < 0 || _cardDatabase == null) return string.Empty;
+                if (_cardDatabase.TryGetCard(_activeWeatherCardId, out var card))
+                {
+                    return card.DisplayName;
+                }
+                return string.Empty;
+            }
         }
 
         public GameState State { get; private set; }
@@ -202,8 +238,9 @@ namespace Networking.Managers
 
             _currentRound++;
             _roundInProgress = true;
+            ApplyProjectRoundStartEffects(runner);
             _activeTurnIndex = -1;
-            _roundWaterGainFlatPenalty    = 0; _roundWaterGainPercentPenalty  = 0;
+_roundWaterGainFlatPenalty    = 0; _roundWaterGainPercentPenalty  = 0;
             _roundWaterGainFlatBonus      = 0; _roundWaterGainPercentBonus    = 0;
             _roundMoneyGainFlatPenalty    = 0; _roundMoneyGainPercentPenalty  = 0;
             _roundMoneyGainFlatBonus      = 0; _roundMoneyGainPercentBonus    = 0;
@@ -214,6 +251,39 @@ namespace Networking.Managers
             _deforestationEventActive = false;
             _deforestationProjectMoneyPercentPenalty = 0;
             _pendingDecisionCardId = -1;
+
+            // ── Weather: expire check or re-apply for this round ─────────────────
+            if (_activeWeatherCardId >= 0)
+            {
+                if (_currentRound > _weatherStartRound + _weatherDurationRounds)
+                {
+                    Debug.Log($"[GameManager] Weather (card {_activeWeatherCardId}) expired at round {_currentRound}.");
+                    ClearActiveWeather();
+                }
+                else
+                {
+                    _roundProjectMoneyPercentPenalty += _weatherProjectMoneyPercentPenalty;
+                    _roundProjectMoneyFlatBonus      += _weatherProjectMoneyFlatBonusPerRound;
+
+                    if (!_weatherApplyBasinDeltaAtRoundEnd && _weatherBasinFlatPerRound != 0 && !_weatherLockBasin)
+                    {
+                        _basinService.ApplyDelta(_weatherBasinFlatPerRound);
+                        SyncBasinHealthToAllPlayers(runner);
+                        if (_basinService.IsDefeated)
+                        {
+                            SetGameState(GameState.Defeat);
+                            _roundInProgress = false;
+                            foreach (var p in runner.ActivePlayers)
+                            {
+                                var d = GetPlayerData(p, runner);
+                                if (d != null) { d.IsGameOver = true; d.IsDefeat = true; }
+                            }
+                            return;
+                        }
+                    }
+
+                }
+            }
 
             // Sync round number to all clients via [Networked] property
             foreach (var player in runner.ActivePlayers)
@@ -230,6 +300,18 @@ namespace Networking.Managers
             if (_currentRound == 1)
             {
                 _basinService.Initialize(_startingBasinHealth);
+            }
+
+            if (_invertTurnOrderNextRound)
+            {
+                _turnOrder.Reverse();
+                for (int i = 0; i < _turnOrder.Count; i++)
+                {
+                    var data = GetPlayerData(_turnOrder[i], runner);
+                    if (data != null) data.TurnOrder = i;
+                }
+                _invertTurnOrderNextRound = false;
+                Debug.Log("[GameManager] Turn order inverted for the new round.");
             }
 
             State = GameState.PlayerTurn;
@@ -319,16 +401,40 @@ namespace Networking.Managers
                 return;
             }
 
-            int effectiveRoll = diceRoll + playerData.PendingDiceModifier;
+            int effectiveRoll = Mathf.Max(1, diceRoll + playerData.PendingDiceModifier + _weatherDiceRollFlatBonus);
             playerData.PendingDiceModifier = 0;
+            playerData.LastDiceRoll = effectiveRoll;
             if (effectiveRoll != diceRoll)
                 Debug.Log($"[GameManager] Player {player.PlayerId} dice roll modified: {diceRoll} → {effectiveRoll}.");
 
-            playerData.BoardPosition = (playerData.BoardPosition + effectiveRoll) % Mathf.Max(1, _boardTileCount);
+            int oldPosition = playerData.BoardPosition;
+            int nextPosition = oldPosition + effectiveRoll;
+            bool passedStart = nextPosition >= _boardTileCount;
+
+            playerData.BoardPosition = nextPosition % Mathf.Max(1, _boardTileCount);
+
+            if (passedStart)
+            {
+                Debug.Log($"[GameManager] Player {player.PlayerId} completed a lap! Awarding 3 money.");
+                ApplyMoneyDelta(playerData, player, runner, 3, respectShield: false);
+            }
+
             Networking.Events.NetworkEventDefinitions.Instance?.OnPlayerMovedEvent?.Raise(player, runner);
 
             State = GameState.TileResolve;
             bool shouldAdvanceTurn = ResolveTileAndApplyEffects(playerData, runner);
+            if (shouldAdvanceTurn)
+            {
+                AdvanceTurn(runner);
+            }
+        }
+
+        public void HandleTeleportLanding(Networking.Models.PlayerSessionData playerData, NetworkRunner runner)
+        {
+            if (runner == null || !runner.IsServer) return;
+
+            State = GameState.TileResolve;
+            bool shouldAdvanceTurn = ResolveTileAndApplyEffects(playerData, runner, fromTeleport: true);
             if (shouldAdvanceTurn)
             {
                 AdvanceTurn(runner);
@@ -390,10 +496,9 @@ namespace Networking.Managers
                 data.HasScannedARThisTurn = false;
                 data.IsInMinigameReadyPhase = false;
                 data.IsReadyForMinigame = false;
-                data.HasNegativeShield = false;
-                data.PendingDiceModifier = 0;
                 data.IsAwaitingDecisionVote = false;
                 data.PendingDecisionVote = 0;
+                data.IsPendingTeleportTileResolution = false;
                 ClearPendingProjectState(data);
 
                 if (data.WaterAmount <= 0)
@@ -469,6 +574,23 @@ namespace Networking.Managers
             if (activeData != null)
             {
                 activeData.IsActiveTurn = true;
+                // Weather: per-turn water delta (e.g. "all players lose 1 water at turn start")
+                if (_activeWeatherCardId >= 0 && _weatherAllPlayersWaterPerTurnDelta != 0)
+                    ApplyWaterDelta(activeData, activePlayer, runner, _weatherAllPlayersWaterPerTurnDelta, respectShield: false);
+
+                // Weather: roll-dependent rewards at turn start
+                if (_activeWeatherCardId >= 0 && _weatherRollDependentRewards)
+                {
+                    int dieRoll = Random.Range(1, 7);
+                    int waterDelta = dieRoll >= 4 ? 4 : -3;
+                    int moneyDelta = dieRoll >= 4 ? 3 : -3;
+
+                    activeData.RPC_SyncWeatherRollResult(dieRoll, waterDelta, moneyDelta);
+
+                    ApplyWaterDelta(activeData, activePlayer, runner, waterDelta, respectShield: false);
+                    ApplyMoneyDelta(activeData, activePlayer, runner, moneyDelta, respectShield: false);
+                    Debug.Log($"[GameManager] Player {activePlayer.PlayerId} rolled {dieRoll}: {waterDelta} water, {moneyDelta} money.");
+                }
             }
 
             State = GameState.PlayerTurn;
@@ -514,7 +636,17 @@ namespace Networking.Managers
 
             if (tileType == Networking.Services.SliceTileType.Hydric)
             {
-                waterDelta = _tileService.ResolveHydricWaterDelta(_hydricWaterGain);
+                if (_weatherNullifyHydricWater)
+                {
+                    waterDelta = 0;
+                }
+                else
+                {
+                    waterDelta = _tileService.ResolveHydricWaterDelta(_hydricWaterGain);
+                    // Weather: signed hydric bonus (positive increases, negative decreases), minimum 1
+                    if (_activeWeatherCardId >= 0 && _weatherHydricWaterFlatBonus != 0)
+                        waterDelta = Mathf.Max(1, waterDelta + _weatherHydricWaterFlatBonus);
+                }
                 moneyDelta = _hydricMoneyGain;
                 basinDelta = _tileService.ResolveHydricBasinDelta(_hydricBasinBonus);
             }
@@ -525,28 +657,43 @@ namespace Networking.Managers
                 basinDelta = _tileService.ResolveCatastrophicBasinDelta(_catastrophicBasinPenalty);
             }
 
-            ApplyWaterDelta(playerData, playerData.Object.InputAuthority, runner, waterDelta, respectShield: true);
+            ApplyWaterDelta(playerData, playerData.Object.InputAuthority, runner, waterDelta, respectShield: true, 
+                isHydric: tileType == Networking.Services.SliceTileType.Hydric, 
+                isCatastrophic: tileType == Networking.Services.SliceTileType.Catastrophic);
             ApplyMoneyDelta(playerData, playerData.Object.InputAuthority, runner, moneyDelta, respectShield: true);
 
-            _basinService.ApplyDelta(basinDelta);
-            SyncBasinHealthToAllPlayers(runner);
-
-            if (_basinService.IsDefeated)
+            if (_activeWeatherCardId >= 0 && _weatherAllPlayersWaterOnTileResolveDelta != 0)
             {
-                SetGameState(GameState.Defeat);
-                _roundInProgress = false;
-
                 foreach (var p in runner.ActivePlayers)
                 {
                     var d = GetPlayerData(p, runner);
-                    if (d != null)
-                    {
-                        d.IsGameOver = true;
-                        d.IsDefeat = true;
-                    }
+                    if (d == null) continue;
+                    ApplyWaterDelta(d, p, runner, _weatherAllPlayersWaterOnTileResolveDelta, respectShield: false);
                 }
+            }
 
-                Debug.Log("[GameManager] Basin defeated! All players lose.");
+            if (!_weatherLockBasin)
+            {
+                _basinService.ApplyDelta(basinDelta);
+                SyncBasinHealthToAllPlayers(runner);
+
+                if (_basinService.IsDefeated)
+                {
+                    SetGameState(GameState.Defeat);
+                    _roundInProgress = false;
+
+                    foreach (var p in runner.ActivePlayers)
+                    {
+                        var d = GetPlayerData(p, runner);
+                        if (d != null)
+                        {
+                            d.IsGameOver = true;
+                            d.IsDefeat = true;
+                        }
+                    }
+
+                    Debug.Log("[GameManager] Basin defeated! All players lose.");
+                }
             }
 
             return true;
@@ -594,18 +741,21 @@ namespace Networking.Managers
 
             if (correct)
             {
+                int multiplier = playerData.DoubleTriviaReward ? 2 : 1;
+                playerData.DoubleTriviaReward = false; // Reset after use
+
                 bool giveWater = UnityEngine.Random.value < 0.5f;
                 if (giveWater)
                 {
-                    int water = UnityEngine.Random.Range(_triviaWaterRewardMin, _triviaWaterRewardMax + 1);
+                    int water = UnityEngine.Random.Range(_triviaWaterRewardMin, _triviaWaterRewardMax + 1) * multiplier;
                     ApplyWaterDelta(playerData, player, runner, water, respectShield: false);
-                    Debug.Log($"[GameManager] Trivia correct — awarded {water} water to player {player.PlayerId}.");
+                    Debug.Log($"[GameManager] Trivia correct — awarded {water} water to player {player.PlayerId} (mult={multiplier}).");
                 }
                 else
                 {
-                    int money = UnityEngine.Random.Range(_triviaMoneyRewardMin, _triviaMoneyRewardMax + 1);
+                    int money = UnityEngine.Random.Range(_triviaMoneyRewardMin, _triviaMoneyRewardMax + 1) * multiplier;
                     ApplyMoneyDelta(playerData, player, runner, money, respectShield: false);
-                    Debug.Log($"[GameManager] Trivia correct — awarded {money} money to player {player.PlayerId}.");
+                    Debug.Log($"[GameManager] Trivia correct — awarded {money} money to player {player.PlayerId} (mult={multiplier}).");
                 }
             }
             else
@@ -619,6 +769,7 @@ namespace Networking.Managers
         private bool BeginDrawCardTileFlow(Networking.Models.PlayerSessionData playerData)
         {
             ClearPendingProjectState(playerData);
+            ClearPendingCardDisplay(playerData);
 
             if (_cardDatabase == null)
             {
@@ -651,30 +802,106 @@ namespace Networking.Managers
                 return;
             }
 
+            // Keep a player-facing copy of this scan for Vuforia overlay UI.
+            playerData.PendingCardTitle = card.DisplayName;
+            playerData.PendingCardLore = card.LoreText;
+            playerData.PendingCardEffect = card.EffectDescription;
+
             Debug.Log($"[GameManager] Card scanned: '{card.DisplayName}' (id={card.CardId}), " +
                       $"water={card.WaterDelta}, money={card.MoneyDelta}, basin={card.BasinDelta}.");
 
-            // ── 1. Self water / money ────────────────────────────────────────────
-            if (card.WaterDelta != 0)
+            // ── 0. Threshold Doubling ────────────────────────────────────────────
+            int thresholdMultiplier = 1;
+            if (card.UseBasinThresholdDoubleDeltas)
             {
-                int wd = card.WaterDeltaIsPercent
-                    ? Mathf.RoundToInt(playerData.WaterAmount * card.WaterDelta / 100f)
-                    : card.WaterDelta;
-                if (wd != 0) ApplyWaterDelta(playerData, player, runner, wd, respectShield: true);
+                int currentBasin = _basinService.BasinHealth;
+                int threshold = Mathf.RoundToInt(_startingBasinHealth * card.BasinThresholdPercentage);
+                if (currentBasin <= threshold)
+                {
+                    thresholdMultiplier = 2;
+                }
             }
 
-            if (card.MoneyDelta != 0)
+            // ── 1. Self water / money ────────────────────────────────────────────
+            // If the card has a weather-conditional override and the active weather matches, use it instead.
+            int cardWaterDelta = (card.ConditionalWaterIfWeatherTag != WeatherTag.None &&
+                                  _activeWeatherTag == card.ConditionalWaterIfWeatherTag)
+                ? card.ConditionalWaterDelta
+                : card.WaterDelta;
+
+            cardWaterDelta *= thresholdMultiplier;
+            if (cardWaterDelta != 0)
+                ApplyWaterDelta(playerData, player, runner, cardWaterDelta, respectShield: true);
+
+            int cardMoneyDelta = card.MoneyDelta * thresholdMultiplier;
+            if (cardMoneyDelta != 0)
+                ApplyMoneyDelta(playerData, player, runner, cardMoneyDelta, respectShield: true);
+
+            // ── 1b. Conditional money based on owned project count ───────────────
+            if (card.ConditionalMoneyOnProjects)
             {
-                int md = card.MoneyDeltaIsPercent
-                    ? Mathf.RoundToInt(playerData.MoneyAmount * card.MoneyDelta / 100f)
-                    : card.MoneyDelta;
+                int projectCount = CountOwnedProjects(playerData);
+                int cd = (projectCount >= 1) ? card.MoneyWithActiveProject : card.MoneyWithoutActiveProject;
+                if (cd != 0) ApplyMoneyDelta(playerData, player, runner, cd, respectShield: true);
+            }
+
+            // ── 1c. Conditional money based on Basin Threshold ───────────────────
+            if (card.UseBasinThresholdMoneyDelta)
+            {
+                int currentBasin = _basinService.BasinHealth;
+                int threshold = Mathf.RoundToInt(_startingBasinHealth * card.BasinThresholdPercentage);
+                int md = (currentBasin > threshold) ? card.MoneyDeltaAboveThreshold : card.MoneyDeltaBelowThreshold;
                 if (md != 0) ApplyMoneyDelta(playerData, player, runner, md, respectShield: true);
             }
 
-            // ── 2. Basin delta ───────────────────────────────────────────────────
-            if (card.BasinDelta != 0)
+            // ── 1d. Weather card — overwrites any active weather ─────────────────
+            if (card.IsWeatherCard)
             {
-                _basinService.ApplyDelta(card.BasinDelta);
+                ClearActiveWeather();
+                _activeWeatherCardId               = card.CardId;
+                _weatherStartRound                 = _currentRound;
+                _weatherDurationRounds             = card.WeatherDurationRounds;
+                _weatherHydricWaterFlatBonus        = card.WeatherHydricWaterFlatBonus;
+                _weatherAllPlayersWaterPerTurnDelta = card.WeatherAllPlayersWaterPerTurnDelta;
+                _weatherAllPlayersWaterOnTileResolveDelta = card.WeatherAllPlayersWaterOnTileResolveDelta;
+                _weatherDiceRollFlatBonus           = card.WeatherDiceRollFlatBonus;
+                _weatherRollDependentRewards        = card.WeatherRollDependentRewards;
+                _weatherProjectMoneyPercentPenalty  = card.WeatherProjectMoneyPercentPenalty;
+                _weatherApplyBasinDeltaAtRoundEnd   = card.WeatherApplyBasinDeltaAtRoundEnd;
+                _weatherBasinFlatPerRound             = card.WeatherBasinFlatPerRound;
+                _weatherProjectMoneyFlatBonusPerRound  = card.WeatherProjectMoneyFlatBonusPerRound;
+                _weatherProjectWaterFlatBonusPerRound   = card.WeatherProjectWaterFlatBonusPerRound;
+                _weatherDoubleBasinRecovery             = card.WeatherDoubleBasinRecovery;
+                _activeWeatherTag                      = card.WeatherTag;
+                _weatherLockBasin                      = card.WeatherLockBasin;
+                _weatherNullifyHydricWater              = card.WeatherNullifyHydricWater;
+                // Apply project money penalty/bonus immediately for the current (in-progress) round
+                _roundProjectMoneyPercentPenalty += _weatherProjectMoneyPercentPenalty;
+                _roundProjectMoneyFlatBonus      += _weatherProjectMoneyFlatBonusPerRound;
+                Debug.Log($"[GameManager] Weather card '{card.DisplayName}' activated. " +
+                          $"Duration: {_weatherDurationRounds} extra rounds from round {_currentRound}.");
+            }
+
+            // ── 1e. Weather termination ──────────────────────────────────────────
+            if (card.TerminatesActiveWeather && _activeWeatherCardId >= 0
+                && (card.TerminatesWeatherTag == WeatherTag.None || _activeWeatherTag == card.TerminatesWeatherTag))
+            {
+                int basinFlat = card.BasinFlatOnWeatherTerminate;
+                ClearActiveWeather();
+                if (basinFlat != 0)
+                {
+                    _basinService.ApplyDelta(basinFlat);
+                    SyncBasinHealthToAllPlayers(runner);
+                }
+                Debug.Log($"[GameManager] '{card.DisplayName}' terminated active weather. Basin flat delta: {basinFlat}.");
+            }
+
+            // ── 2. Basin delta ───────────────────────────────────────────────────
+            if (card.BasinDelta != 0 && !_weatherLockBasin)
+            {
+                int calculatedBasinDelta = card.BasinDelta * thresholdMultiplier;
+                int basinDelta = (_weatherDoubleBasinRecovery && calculatedBasinDelta > 0) ? calculatedBasinDelta * 2 : calculatedBasinDelta;
+                _basinService.ApplyDelta(basinDelta);
                 SyncBasinHealthToAllPlayers(runner);
 
                 if (_basinService.IsDefeated)
@@ -691,6 +918,37 @@ namespace Networking.Managers
                 }
             }
 
+            // ── 2b. Basin threshold delta ────────────────────────────────────────
+            if (card.UseBasinThresholdDelta && card.ApplyBasinThresholdOnScan && !_weatherLockBasin)
+            {
+                int currentBasin = _basinService.BasinHealth;
+                int threshold = Mathf.RoundToInt(_startingBasinHealth * card.BasinThresholdPercentage);
+
+                int thresholdDelta = (currentBasin > threshold)
+                    ? card.BasinDeltaAboveThreshold
+                    : card.BasinDeltaBelowThreshold;
+
+                if (thresholdDelta != 0)
+                {
+                    int finalDelta = (_weatherDoubleBasinRecovery && thresholdDelta > 0) ? thresholdDelta * 2 : thresholdDelta;
+                    _basinService.ApplyDelta(finalDelta);
+                    SyncBasinHealthToAllPlayers(runner);
+
+                    if (_basinService.IsDefeated)
+                    {
+                        SetGameState(GameState.Defeat);
+                        _roundInProgress = false;
+                        foreach (var p in runner.ActivePlayers)
+                        {
+                            var d = GetPlayerData(p, runner);
+                            if (d != null) { d.IsGameOver = true; d.IsDefeat = true; }
+                        }
+                        playerData.IsAwaitingCardScan = false;
+                        return;
+                    }
+                }
+            }
+
             // ── 3. All-players water / money ─────────────────────────────────────
             if (card.AllPlayersWaterDelta != 0)
             {
@@ -698,10 +956,7 @@ namespace Networking.Managers
                 {
                     var d = GetPlayerData(p, runner);
                     if (d == null) continue;
-                    int wd = card.AllPlayersWaterDeltaIsPercent
-                        ? Mathf.RoundToInt(d.WaterAmount * card.AllPlayersWaterDelta / 100f)
-                        : card.AllPlayersWaterDelta;
-                    if (wd != 0) ApplyWaterDelta(d, p, runner, wd, respectShield: true);
+                    ApplyWaterDelta(d, p, runner, card.AllPlayersWaterDelta, respectShield: true);
                 }
             }
 
@@ -711,20 +966,17 @@ namespace Networking.Managers
                 {
                     var d = GetPlayerData(p, runner);
                     if (d == null) continue;
-                    int md = card.AllPlayersMoneyDeltaIsPercent
-                        ? Mathf.RoundToInt(d.MoneyAmount * card.AllPlayersMoneyDelta / 100f)
-                        : card.AllPlayersMoneyDelta;
-                    if (md != 0) ApplyMoneyDelta(d, p, runner, md, respectShield: true);
+                    ApplyMoneyDelta(d, p, runner, card.AllPlayersMoneyDelta, respectShield: true);
                 }
             }
 
             // ── 4. Round water-gain penalty ──────────────────────────────────────
-            AccumulateRoundModifier(card.RoundWaterGainPenalty,    card.RoundWaterGainPenaltyIsPercent,    ref _roundWaterGainFlatPenalty,    ref _roundWaterGainPercentPenalty,    capPercent: true);
-            AccumulateRoundModifier(card.RoundWaterGainBonus,      card.RoundWaterGainBonusIsPercent,      ref _roundWaterGainFlatBonus,       ref _roundWaterGainPercentBonus,      capPercent: false);
-            AccumulateRoundModifier(card.RoundMoneyGainPenalty,    card.RoundMoneyGainPenaltyIsPercent,    ref _roundMoneyGainFlatPenalty,     ref _roundMoneyGainPercentPenalty,    capPercent: true);
-            AccumulateRoundModifier(card.RoundMoneyGainBonus,      card.RoundMoneyGainBonusIsPercent,      ref _roundMoneyGainFlatBonus,       ref _roundMoneyGainPercentBonus,      capPercent: false);
-            AccumulateRoundModifier(card.RoundProjectMoneyPenalty, card.RoundProjectMoneyPenaltyIsPercent, ref _roundProjectMoneyFlatPenalty,  ref _roundProjectMoneyPercentPenalty, capPercent: true);
-            AccumulateRoundModifier(card.RoundProjectMoneyBonus,   card.RoundProjectMoneyBonusIsPercent,   ref _roundProjectMoneyFlatBonus,    ref _roundProjectMoneyPercentBonus,   capPercent: false);
+            AccumulateRoundModifier(card.RoundWaterGainPenalty,    false, ref _roundWaterGainFlatPenalty,    ref _roundWaterGainPercentPenalty,    capPercent: true);
+            AccumulateRoundModifier(card.RoundWaterGainBonus,      false, ref _roundWaterGainFlatBonus,       ref _roundWaterGainPercentBonus,      capPercent: false);
+            AccumulateRoundModifier(card.RoundMoneyGainPenalty,    false, ref _roundMoneyGainFlatPenalty,     ref _roundMoneyGainPercentPenalty,    capPercent: true);
+            AccumulateRoundModifier(card.RoundMoneyGainBonus,      false, ref _roundMoneyGainFlatBonus,       ref _roundMoneyGainPercentBonus,      capPercent: false);
+            AccumulateRoundModifier(card.RoundProjectMoneyPenalty, false, ref _roundProjectMoneyFlatPenalty,  ref _roundProjectMoneyPercentPenalty, capPercent: true);
+            AccumulateRoundModifier(card.RoundProjectMoneyBonus,   false, ref _roundProjectMoneyFlatBonus,    ref _roundProjectMoneyPercentBonus,   capPercent: false);
             AccumulateCardEventFlags(card.IsDroughtEvent, card.IsClimateEvent,
                 card.IsDeforestationEvent, card.DeforestationProjectMoneyPercentPenalty);
 
@@ -732,23 +984,64 @@ namespace Networking.Managers
             if (card.DiceModifier != 0)
                 playerData.PendingDiceModifier += card.DiceModifier;
 
+            if (card.InvertsTurnOrder)
+                _invertTurnOrderNextRound = true;
+
             // ── 6. Negative shield ───────────────────────────────────────────────
             if (card.GrantsNegativeShield)
                 playerData.HasNegativeShield = true;
 
+            if (card.GrantsDoubleTriviaReward)
+                playerData.DoubleTriviaReward = true;
+
             // ── 7. Teleport ──────────────────────────────────────────────────────
-            if (card.SelfMoveToTile >= 0)
+            if (card.TeleportMode == Networking.Models.TeleportMode.ToSpecificIndex && card.SelfMoveToTile >= 0)
             {
-                playerData.BoardPosition = card.SelfMoveToTile % Mathf.Max(1, _boardTileCount);
-                Networking.Events.NetworkEventDefinitions.Instance?.OnPlayerMovedEvent?.Raise(player, runner);
-                // Resolve the new tile; teleport guard prevents a nested teleport card from teleporting again.
-                State = GameState.TileResolve;
-                bool tileAdvances = ResolveTileAndApplyEffects(playerData, runner, fromTeleport: true);
-                if (!tileAdvances)
+                int oldPos = playerData.BoardPosition;
+                int nextPos = card.SelfMoveToTile % Mathf.Max(1, _boardTileCount);
+
+                if (nextPos < oldPos)
                 {
-                    // Tile opened its own decision flow (e.g. project scan); turn will advance later.
-                    playerData.IsAwaitingCardScan = false;
-                    return;
+                    Debug.Log($"[GameManager] Player {player.PlayerId} completed a lap via teleport! Awarding 3 money.");
+                    ApplyMoneyDelta(playerData, player, runner, 3, respectShield: false);
+                }
+
+                playerData.BoardPosition = nextPos;
+                playerData.IsPendingTeleportTileResolution = true;
+                Networking.Events.NetworkEventDefinitions.Instance?.OnPlayerMovedEvent?.Raise(player, runner);
+            }
+            else if (card.TeleportMode == Networking.Models.TeleportMode.ToNearestTileType)
+            {
+                int currentPos = playerData.BoardPosition;
+                int nextTile = -1;
+                int distance = -1;
+                var targetType = card.TeleportTargetTileType;
+
+                // Search forward for the next tile of this type
+                for (int i = 1; i <= _boardTileCount; i++)
+                {
+                    int checkIdx = (currentPos + i) % Mathf.Max(1, _boardTileCount);
+                    if (_tileService.GetTileType(checkIdx) == targetType)
+                    {
+                        nextTile = checkIdx;
+                        distance = i;
+                        break;
+                    }
+                }
+
+                if (nextTile >= 0)
+                {
+                    Debug.Log($"[GameManager] TeleportToNext: Player {player.PlayerId} at {currentPos} moving to {targetType} tile {nextTile} (dist {distance}).");
+
+                    if (nextTile < currentPos)
+                    {
+                        Debug.Log($"[GameManager] Player {player.PlayerId} completed a lap via search-teleport! Awarding 3 money.");
+                        ApplyMoneyDelta(playerData, player, runner, 3, respectShield: false);
+                    }
+
+                    playerData.BoardPosition = nextTile;
+                    playerData.IsPendingTeleportTileResolution = true;
+                    Networking.Events.NetworkEventDefinitions.Instance?.OnPlayerMovedEvent?.Raise(player, runner);
                 }
             }
 
@@ -860,6 +1153,7 @@ namespace Networking.Managers
             Debug.Log($"[GameManager] Player {player.PlayerId} skipped card scan. Advancing turn.");
             playerData.IsAwaitingCardScan = false;
             ClearPendingProjectState(playerData);
+            ClearPendingCardDisplay(playerData);
             AdvanceTurn(runner);
         }
 
@@ -880,6 +1174,18 @@ namespace Networking.Managers
             data.IsAwaitingProjectDecision = false;
             data.IsAwaitingCardScan = false;
             data.IsAwaitingTrivia = false;
+        }
+
+        private void ClearPendingCardDisplay(Networking.Models.PlayerSessionData data)
+        {
+            if (data == null)
+            {
+                return;
+            }
+
+            data.PendingCardTitle = default;
+            data.PendingCardLore = default;
+            data.PendingCardEffect = default;
         }
 
         private int CountOwnedProjects(Networking.Models.PlayerSessionData data)
@@ -935,7 +1241,8 @@ namespace Networking.Managers
             var (water, money) = project.GetIncomeForZone((Networking.Models.ColombiaZone)zoneValue);
 
             // ── Water logic ─────────────────────────────────────────────────────
-            if (_droughtEventActive && project.HasBehaviour(Networking.Models.ProjectPassiveBehaviour.NullifiedByDroughtEvent))
+            bool isDroughtActive = _droughtEventActive || (_activeWeatherCardId >= 0 && _activeWeatherTag == Networking.Models.WeatherTag.Drought);
+            if (isDroughtActive && project.HasBehaviour(Networking.Models.ProjectPassiveBehaviour.NullifiedByDroughtEvent))
             {
                 water = 0;
                 Debug.Log($"[GameManager] Project '{project.DisplayName}' water nullified by Drought.");
@@ -949,6 +1256,18 @@ namespace Networking.Managers
                     Debug.Log($"[GameManager] Project '{project.DisplayName}' water doubled (basin {_basinService.BasinHealth} < {threshold}).");
                 }
             }
+            else if (project.HasBehaviour(Networking.Models.ProjectPassiveBehaviour.DoublesWaterAboveBasinThreshold))
+            {
+                int threshold = Mathf.RoundToInt(project.BasinThresholdForBonus * _startingBasinHealth);
+                if (_basinService.BasinHealth > threshold)
+                {
+                    water *= 2;
+                    Debug.Log($"[GameManager] Project '{project.DisplayName}' water doubled (basin {_basinService.BasinHealth} > {threshold}).");
+                }
+            }
+
+            if (_weatherProjectWaterFlatBonusPerRound != 0 && water > 0)
+                water += _weatherProjectWaterFlatBonusPerRound;
 
             if (water > 0)
             {
@@ -965,14 +1284,46 @@ namespace Networking.Managers
             }
 
             // ── Money logic ─────────────────────────────────────────────────────
-            if (_climateEventActive && project.HasBehaviour(Networking.Models.ProjectPassiveBehaviour.BonusMoneyFromClimateEvent))
+            bool isAnyWeatherActive = _activeWeatherCardId >= 0;
+            bool isDroughtWeather = isAnyWeatherActive && _activeWeatherTag == Networking.Models.WeatherTag.Drought;
+            bool isRainWeather = isAnyWeatherActive && _activeWeatherTag == Networking.Models.WeatherTag.Rain;
+
+            if (project.HasBehaviour(Networking.Models.ProjectPassiveBehaviour.SymmetricWeatherMoney))
+            {
+                if (isRainWeather)
+                {
+                    money += project.ClimateEventMoneyBonus;
+                    Debug.Log($"[GameManager] Project '{project.DisplayName}' money symmetric boost +{project.ClimateEventMoneyBonus} by Rain.");
+                }
+                else if (isDroughtWeather)
+                {
+                    money -= project.ClimateEventMoneyBonus;
+                    Debug.Log($"[GameManager] Project '{project.DisplayName}' money symmetric penalty -{project.ClimateEventMoneyBonus} by Drought.");
+                }
+            }
+            else if (isDroughtWeather && project.HasBehaviour(Networking.Models.ProjectPassiveBehaviour.BonusMoneyDuringDrought))
             {
                 money += project.ClimateEventMoneyBonus;
-                Debug.Log($"[GameManager] Project '{project.DisplayName}' money boosted +{project.ClimateEventMoneyBonus} by Climate event.");
+                Debug.Log($"[GameManager] Project '{project.DisplayName}' money boosted +{project.ClimateEventMoneyBonus} by Drought weather.");
+            }
+            else if (isAnyWeatherActive && project.HasBehaviour(Networking.Models.ProjectPassiveBehaviour.BonusMoneyDuringWeather))
+            {
+                money += project.ClimateEventMoneyBonus;
+                Debug.Log($"[GameManager] Project '{project.DisplayName}' money boosted +{project.ClimateEventMoneyBonus} by active weather.");
+            }
+
+            if (project.HasBehaviour(Networking.Models.ProjectPassiveBehaviour.NullifiedMoneyBelowBasinThreshold))
+            {
+                int threshold = Mathf.RoundToInt(project.BasinThresholdForBonus * _startingBasinHealth);
+                if (_basinService.BasinHealth < threshold)
+                {
+                    money = 0;
+                    Debug.Log($"[GameManager] Project '{project.DisplayName}' money nullified (basin {_basinService.BasinHealth} < {threshold}).");
+                }
             }
 
             if (_deforestationEventActive && project.HasBehaviour(Networking.Models.ProjectPassiveBehaviour.ReducedByDeforestationEvent))
-            {
+{
                 float deforestationMult = 1f - Mathf.Clamp(_deforestationProjectMoneyPercentPenalty, 0, 100) / 100f;
                 money = Mathf.Max(0, Mathf.RoundToInt(money * deforestationMult));
                 Debug.Log($"[GameManager] Project '{project.DisplayName}' money reduced by Deforestation ({_deforestationProjectMoneyPercentPenalty}%).");
@@ -1000,7 +1351,7 @@ namespace Networking.Managers
         /// Negative deltas can be blocked by HasNegativeShield (unless respectShield is false).
         /// Positive deltas are reduced by the active round water-gain penalty.
         /// </summary>
-        private void ApplyWaterDelta(Networking.Models.PlayerSessionData data, PlayerRef player, NetworkRunner runner, int delta, bool respectShield = true)
+        private void ApplyWaterDelta(Networking.Models.PlayerSessionData data, PlayerRef player, NetworkRunner runner, int delta, bool respectShield = true, bool isHydric = false, bool isCatastrophic = false)
         {
             if (data == null || runner == null || !runner.IsServer || delta == 0) return;
 
@@ -1012,13 +1363,41 @@ namespace Networking.Managers
             }
 
             int effectiveDelta = delta;
-            if (delta > 0)
+
+            // ── Project behavior: Contextual Water Modifier ─────────────────────
+            if (_projectDatabase != null)
             {
+                int[] projectIds = { data.OwnedProjectSlot0Id, data.OwnedProjectSlot1Id, data.OwnedProjectSlot2Id };
+                foreach (int id in projectIds)
+                {
+                    if (id > 0 && _projectDatabase.TryGetProject(id, out var project) && project != null)
+                    {
+                        if (project.HasBehaviour(Networking.Models.ProjectPassiveBehaviour.ContextualWaterModifier))
+                        {
+                            if (delta > 0)
+                            {
+                                bool isLaNina = _activeWeatherCardId >= 0 && _activeWeatherTag == Networking.Models.WeatherTag.Rain;
+                                int bonus = (isLaNina || isHydric) ? project.ContextualWaterBonusEnhanced : project.ContextualWaterBonusNormal;
+                                effectiveDelta += bonus;
+                                Debug.Log($"[GameManager] Project '{project.DisplayName}' bonus: +{bonus} water added to gain of {delta} (LaNina={isLaNina}, Hydric={isHydric}).");
+                            }
+                            else if (delta < 0 && isCatastrophic)
+                            {
+                                effectiveDelta -= project.ContextualWaterPenalty;
+                                Debug.Log($"[GameManager] Project '{project.DisplayName}' penalty: -{project.ContextualWaterPenalty} water added to loss of {delta} (Catastrophic=true).");
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (effectiveDelta > 0)
+{
                 bool hasMod = _roundWaterGainFlatPenalty > 0 || _roundWaterGainPercentPenalty > 0
                            || _roundWaterGainFlatBonus   > 0 || _roundWaterGainPercentBonus   > 0;
                 if (hasMod)
                 {
-                    int afterFlat = Mathf.Max(0, delta - _roundWaterGainFlatPenalty + _roundWaterGainFlatBonus);
+                    int afterFlat = Mathf.Max(0, effectiveDelta - _roundWaterGainFlatPenalty + _roundWaterGainFlatBonus);
                     float penaltyMult = 1f - Mathf.Clamp(_roundWaterGainPercentPenalty, 0, 100) / 100f;
                     float bonusMult   = 1f + _roundWaterGainPercentBonus / 100f;
                     effectiveDelta = Mathf.Max(0, Mathf.RoundToInt(afterFlat * penaltyMult * bonusMult));
@@ -1034,8 +1413,23 @@ namespace Networking.Managers
             Networking.Events.NetworkEventDefinitions.Instance?.OnPlayerWaterChangedEvent?.Raise(player, runner);
         }
 
+        private bool HasProjectWithBehaviour(Networking.Models.PlayerSessionData data, Networking.Models.ProjectPassiveBehaviour behaviour)
+        {
+            if (_projectDatabase == null) return false;
+            
+            int[] projectIds = { data.OwnedProjectSlot0Id, data.OwnedProjectSlot1Id, data.OwnedProjectSlot2Id };
+            foreach (int id in projectIds)
+            {
+                if (id > 0 && _projectDatabase.TryGetProject(id, out var project) && project != null)
+                {
+                    if (project.HasBehaviour(behaviour)) return true;
+                }
+            }
+            return false;
+        }
+
         /// <summary>
-        /// Central method for all server-side money mutations.
+/// Central method for all server-side money mutations.
         /// Negative deltas can be blocked by HasNegativeShield (unless respectShield is false).
         /// Positive deltas are reduced by the active round money-gain penalty.
         /// </summary>
@@ -1081,24 +1475,15 @@ namespace Networking.Managers
             var scannerData = GetPlayerData(scanningPlayer, runner);
 
             if (choice.WaterDelta != 0 && scannerData != null)
-            {
-                int wd = choice.WaterDeltaIsPercent
-                    ? Mathf.RoundToInt(scannerData.WaterAmount * choice.WaterDelta / 100f)
-                    : choice.WaterDelta;
-                if (wd != 0) ApplyWaterDelta(scannerData, scanningPlayer, runner, wd);
-            }
+                ApplyWaterDelta(scannerData, scanningPlayer, runner, choice.WaterDelta);
 
             if (choice.MoneyDelta != 0 && scannerData != null)
-            {
-                int md = choice.MoneyDeltaIsPercent
-                    ? Mathf.RoundToInt(scannerData.MoneyAmount * choice.MoneyDelta / 100f)
-                    : choice.MoneyDelta;
-                if (md != 0) ApplyMoneyDelta(scannerData, scanningPlayer, runner, md);
-            }
+                ApplyMoneyDelta(scannerData, scanningPlayer, runner, choice.MoneyDelta);
 
-            if (choice.BasinDelta != 0)
+            if (choice.BasinDelta != 0 && !_weatherLockBasin)
             {
-                _basinService.ApplyDelta(choice.BasinDelta);
+                int basinDelta = (_weatherDoubleBasinRecovery && choice.BasinDelta > 0) ? choice.BasinDelta * 2 : choice.BasinDelta;
+                _basinService.ApplyDelta(basinDelta);
                 SyncBasinHealthToAllPlayers(runner);
             }
 
@@ -1108,10 +1493,7 @@ namespace Networking.Managers
                 {
                     var d = GetPlayerData(p, runner);
                     if (d == null) continue;
-                    int wd = choice.AllPlayersWaterDeltaIsPercent
-                        ? Mathf.RoundToInt(d.WaterAmount * choice.AllPlayersWaterDelta / 100f)
-                        : choice.AllPlayersWaterDelta;
-                    if (wd != 0) ApplyWaterDelta(d, p, runner, wd);
+                    ApplyWaterDelta(d, p, runner, choice.AllPlayersWaterDelta);
                 }
             }
 
@@ -1121,19 +1503,16 @@ namespace Networking.Managers
                 {
                     var d = GetPlayerData(p, runner);
                     if (d == null) continue;
-                    int md = choice.AllPlayersMoneyDeltaIsPercent
-                        ? Mathf.RoundToInt(d.MoneyAmount * choice.AllPlayersMoneyDelta / 100f)
-                        : choice.AllPlayersMoneyDelta;
-                    if (md != 0) ApplyMoneyDelta(d, p, runner, md);
+                    ApplyMoneyDelta(d, p, runner, choice.AllPlayersMoneyDelta);
                 }
             }
 
-            AccumulateRoundModifier(choice.RoundWaterGainPenalty,    choice.RoundWaterGainPenaltyIsPercent,    ref _roundWaterGainFlatPenalty,    ref _roundWaterGainPercentPenalty,    capPercent: true);
-            AccumulateRoundModifier(choice.RoundWaterGainBonus,      choice.RoundWaterGainBonusIsPercent,      ref _roundWaterGainFlatBonus,       ref _roundWaterGainPercentBonus,      capPercent: false);
-            AccumulateRoundModifier(choice.RoundMoneyGainPenalty,    choice.RoundMoneyGainPenaltyIsPercent,    ref _roundMoneyGainFlatPenalty,     ref _roundMoneyGainPercentPenalty,    capPercent: true);
-            AccumulateRoundModifier(choice.RoundMoneyGainBonus,      choice.RoundMoneyGainBonusIsPercent,      ref _roundMoneyGainFlatBonus,       ref _roundMoneyGainPercentBonus,      capPercent: false);
-            AccumulateRoundModifier(choice.RoundProjectMoneyPenalty, choice.RoundProjectMoneyPenaltyIsPercent, ref _roundProjectMoneyFlatPenalty,  ref _roundProjectMoneyPercentPenalty, capPercent: true);
-            AccumulateRoundModifier(choice.RoundProjectMoneyBonus,   choice.RoundProjectMoneyBonusIsPercent,   ref _roundProjectMoneyFlatBonus,    ref _roundProjectMoneyPercentBonus,   capPercent: false);
+            AccumulateRoundModifier(choice.RoundWaterGainPenalty,    false, ref _roundWaterGainFlatPenalty,    ref _roundWaterGainPercentPenalty,    capPercent: true);
+            AccumulateRoundModifier(choice.RoundWaterGainBonus,      false, ref _roundWaterGainFlatBonus,       ref _roundWaterGainPercentBonus,      capPercent: false);
+            AccumulateRoundModifier(choice.RoundMoneyGainPenalty,    false, ref _roundMoneyGainFlatPenalty,     ref _roundMoneyGainPercentPenalty,    capPercent: true);
+            AccumulateRoundModifier(choice.RoundMoneyGainBonus,      false, ref _roundMoneyGainFlatBonus,       ref _roundMoneyGainPercentBonus,      capPercent: false);
+            AccumulateRoundModifier(choice.RoundProjectMoneyPenalty, false, ref _roundProjectMoneyFlatPenalty,  ref _roundProjectMoneyPercentPenalty, capPercent: true);
+            AccumulateRoundModifier(choice.RoundProjectMoneyBonus,   false, ref _roundProjectMoneyFlatBonus,    ref _roundProjectMoneyPercentBonus,   capPercent: false);
 
             if (choice.DiceModifier != 0 && scannerData != null)
                 scannerData.PendingDiceModifier += choice.DiceModifier;
@@ -1219,6 +1598,58 @@ namespace Networking.Managers
             if (runner != null && runner.IsServer)
             {
                 ApplyPassiveProjectEffects(runner);
+
+                // Weather: basin delta is resolved at end of each round.
+                if (_activeWeatherCardId >= 0 && _weatherApplyBasinDeltaAtRoundEnd && _weatherBasinFlatPerRound != 0 && !_weatherLockBasin)
+                {
+                    _basinService.ApplyDelta(_weatherBasinFlatPerRound);
+                    SyncBasinHealthToAllPlayers(runner);
+
+                    if (_basinService.IsDefeated)
+                    {
+                        SetGameState(GameState.Defeat);
+                        foreach (var p in runner.ActivePlayers)
+                        {
+                            var d = GetPlayerData(p, runner);
+                            if (d != null) { d.IsGameOver = true; d.IsDefeat = true; }
+                        }
+                        Networking.Events.NetworkEventDefinitions.Instance?.OnRoundEndedEvent?.Raise(default, runner);
+                        return;
+                    }
+                }
+
+                // Weather: basin threshold effect check (e.g. at end of duration)
+                if (_activeWeatherCardId >= 0 && _cardDatabase.TryGetCard(_activeWeatherCardId, out var weatherCard))
+                {
+                    if (weatherCard.UseBasinThresholdDelta && _currentRound == _weatherStartRound + _weatherDurationRounds)
+                    {
+                        int basinHealth = _basinService.BasinHealth;
+                        int threshold = Mathf.RoundToInt(_startingBasinHealth * weatherCard.BasinThresholdPercentage);
+
+                        int thresholdDelta = (basinHealth > threshold)
+                            ? weatherCard.BasinDeltaAboveThreshold
+                            : weatherCard.BasinDeltaBelowThreshold;
+
+                        if (thresholdDelta != 0)
+                        {
+                            int finalDelta = (_weatherDoubleBasinRecovery && thresholdDelta > 0) ? thresholdDelta * 2 : thresholdDelta;
+                            _basinService.ApplyDelta(finalDelta);
+                            SyncBasinHealthToAllPlayers(runner);
+
+                            if (_basinService.IsDefeated)
+                            {
+                                SetGameState(GameState.Defeat);
+                                foreach (var p in runner.ActivePlayers)
+                                {
+                                    var d = GetPlayerData(p, runner);
+                                    if (d != null) { d.IsGameOver = true; d.IsDefeat = true; }
+                                }
+                                Networking.Events.NetworkEventDefinitions.Instance?.OnRoundEndedEvent?.Raise(default, runner);
+                                return;
+                            }
+                        }
+                    }
+                }
             }
 
             Networking.Events.NetworkEventDefinitions.Instance?.OnRoundEndedEvent?.Raise(default, runner);
@@ -1324,10 +1755,11 @@ namespace Networking.Managers
 
             if (_currentRound >= Mathf.Max(1, _maxRoundsToWin))
             {
+                ApplyProjectEndGameBonuses(runner);
                 SetGameState(GameState.Victory);
 
                 foreach (var p in runner.ActivePlayers)
-                {
+{
                     var d = GetPlayerData(p, runner);
                     if (d != null) d.IsGameOver = true;
                 }
@@ -1426,8 +1858,93 @@ namespace Networking.Managers
             _playerData.Clear();
         }
 
-        private void ResetMatchRuntimeState()
+        private bool IsPositiveWeatherActive()
         {
+            if (_activeWeatherCardId < 0) return false;
+            // Assuming Rain is the only 'positive' weather for now.
+            return _activeWeatherTag == Networking.Models.WeatherTag.Rain;
+        }
+
+        private void ApplyProjectRoundStartEffects(NetworkRunner runner)
+        {
+            if (runner == null || !runner.IsServer) return;
+
+            bool positiveWeather = IsPositiveWeatherActive();
+
+            foreach (var player in runner.ActivePlayers)
+            {
+                var data = GetPlayerData(player, runner);
+                if (data == null) continue;
+
+                int[] projectIds = { data.OwnedProjectSlot0Id, data.OwnedProjectSlot1Id, data.OwnedProjectSlot2Id };
+                foreach (int id in projectIds)
+                {
+                    if (id > 0 && _projectDatabase.TryGetProject(id, out var project) && project != null)
+                    {
+                        if (project.HasBehaviour(Networking.Models.ProjectPassiveBehaviour.BasinRecoveryPerRound))
+                        {
+                            int recovery = positiveWeather ? project.BasinRecoveryEnhancedAmount : project.BasinRecoveryNormalAmount;
+                            if (recovery > 0)
+                            {
+                                _basinService.ApplyDelta(recovery);
+                                Debug.Log($"[GameManager] Project '{project.DisplayName}' recovered {recovery} basin health (weather={positiveWeather}).");
+                            }
+                        }
+
+                        if (project.HasBehaviour(Networking.Models.ProjectPassiveBehaviour.BasinLossPerRound))
+                        {
+                            bool isDrought = _activeWeatherCardId >= 0 && _activeWeatherTag == Networking.Models.WeatherTag.Drought;
+                            int loss = isDrought ? project.BasinLossDroughtAmount : project.BasinLossNormalAmount;
+                            if (loss > 0)
+                            {
+                                _basinService.ApplyDelta(-loss);
+                                Debug.Log($"[GameManager] Project '{project.DisplayName}' reduced basin health by {loss} (weather=Drought:{isDrought}).");
+                            }
+                        }
+}
+                }
+            }
+            SyncBasinHealthToAllPlayers(runner);
+        }
+
+        private void ApplyProjectEndGameBonuses(NetworkRunner runner)
+        {
+            if (runner == null || !runner.IsServer) return;
+
+            int currentBasin = _basinService.BasinHealth;
+
+            foreach (var player in runner.ActivePlayers)
+            {
+                var data = GetPlayerData(player, runner);
+                if (data == null) continue;
+
+                int totalBonusWater = 0;
+                int[] projectIds = { data.OwnedProjectSlot0Id, data.OwnedProjectSlot1Id, data.OwnedProjectSlot2Id };
+                foreach (int id in projectIds)
+                {
+                    if (id > 0 && _projectDatabase.TryGetProject(id, out var project) && project != null)
+                    {
+                        if (project.HasBehaviour(Networking.Models.ProjectPassiveBehaviour.EndGameBasinBonus))
+                        {
+                            int threshold = Mathf.RoundToInt(_startingBasinHealth * project.EndGameBasinThreshold);
+                            if (currentBasin > threshold)
+                            {
+                                totalBonusWater += project.EndGameWaterBonus;
+                                Debug.Log($"[GameManager] Player {player.PlayerId} earned end-game bonus from '{project.DisplayName}': {project.EndGameWaterBonus} water.");
+                            }
+                        }
+                    }
+                }
+
+                if (totalBonusWater > 0)
+                {
+                    ApplyWaterDelta(data, player, runner, totalBonusWater, respectShield: false);
+                }
+            }
+        }
+
+        private void ResetMatchRuntimeState()
+{
             _turnOrder.Clear();
             _isTurnOrderLocked = false;
             _activeTurnIndex = -1;
@@ -1444,6 +1961,28 @@ namespace Networking.Managers
             _deforestationEventActive = false;
             _deforestationProjectMoneyPercentPenalty = 0;
             _pendingDecisionCardId = -1;
+            ClearActiveWeather();
+        }
+
+        private void ClearActiveWeather()
+        {
+            _activeWeatherCardId               = -1;
+            _weatherStartRound                 = 0;
+            _weatherDurationRounds             = 0;
+            _weatherHydricWaterFlatBonus        = 0;
+            _weatherAllPlayersWaterPerTurnDelta = 0;
+            _weatherAllPlayersWaterOnTileResolveDelta = 0;
+            _weatherDiceRollFlatBonus           = 0;
+            _weatherRollDependentRewards        = false;
+            _weatherProjectMoneyPercentPenalty  = 0;
+            _weatherApplyBasinDeltaAtRoundEnd   = false;
+            _weatherBasinFlatPerRound             = 0;
+            _weatherProjectMoneyFlatBonusPerRound  = 0;
+            _weatherProjectWaterFlatBonusPerRound   = 0;
+            _weatherDoubleBasinRecovery             = false;
+            _activeWeatherTag                      = WeatherTag.None;
+            _weatherLockBasin                      = false;
+            _weatherNullifyHydricWater             = false;
         }
 
         public void DisconnectedFromSession(PlayerRef player, NetworkRunner runner)
@@ -1547,6 +2086,7 @@ namespace Networking.Managers
 
             playerData.PendingProjectId = project.ProjectId;
             playerData.PendingProjectName = project.DisplayName;
+            playerData.PendingProjectDescription = project.Description;
             playerData.PendingProjectPrice = project.Price;
             playerData.PendingProjectWaterIncome = waterIncome;
             playerData.PendingProjectMoneyIncome = moneyIncome;

@@ -59,6 +59,7 @@ namespace Networking.UI
         [SerializeField] private GameObject _modelPanel;
         [SerializeField] private GameObject _backgroundImage;
         [SerializeField] private GameObject _vuforiaARCamera;
+            [SerializeField] private Button _closeVuforiaButton;
         [SerializeField] private ModelViewerController _modelViewerController;
         [Space]
         [SerializeField] private GameObject _modeButtons;
@@ -97,6 +98,7 @@ namespace Networking.UI
         private bool _initPanelVisualsVisible;
         private bool _roomInputsVisualsVisible;
         private bool _isTransitioningFromRoomInputs;
+        private bool _vuforiaScanCompletedInSession;
 
         private sealed class RivalPlayerCardView
         {
@@ -248,6 +250,30 @@ namespace Networking.UI
         private bool _sessionRestored;
         private bool _diceRolling;
 
+        public bool IsTurnNotificationPanelActive => _turnNotificationPanel != null && _turnNotificationPanel.activeSelf;
+
+        /// <summary>
+        /// Returns true if it is currently the local player's turn.
+        /// </summary>
+        public bool IsLocalPlayerTurn
+        {
+            get
+            {
+                var runner = Networking.Services.FusionNetworkService.LocalRunner;
+                if (runner == null) return false;
+                var gm = Networking.Managers.GameManager.Instance;
+                if (gm == null) return false;
+                var localData = gm.GetPlayerData(runner.LocalPlayer, runner);
+                return localData != null && localData.IsActiveTurn;
+            }
+        }
+
+        /// <summary>
+        /// Returns true if a turn start notification is pending to be shown for the local player.
+        /// Useful for other UI panels to wait until the "It's your turn" animation triggers or finishes.
+        /// </summary>
+        public bool IsWaitingForTurnNotification => IsLocalPlayerTurn && !_shownTurnNotificationThisTurn;
+
         private void Update()
         {
             var runner = Networking.Services.FusionNetworkService.LocalRunner;
@@ -382,9 +408,14 @@ namespace Networking.UI
                 {
                     RefreshTurnUI(runner);
                     EnsureMinigameReadyUIController();
-                    _minigameReadyUIController?.Refresh(runner, _diceRolling, _turnNotificationPanel);
+                    _minigameReadyUIController?.Refresh(
+                        runner,
+                        _diceRolling,
+                        _turnNotificationPanel,
+                        _vuforiaPanel != null && _vuforiaPanel.activeSelf);
                     RefreshGameLobbyStatus(runner);
                     RefreshProjectDecisionUI(runner);
+                    RefreshVuforiaBackButtonState(runner);
                     RefreshVictoryPanel(runner);
                     EnsureTriviaUIController();
                     _triviaUIController?.Refresh(runner, _turnNotificationPanel);
@@ -597,22 +628,16 @@ namespace Networking.UI
 
         private static string BuildTurnStatusText(Networking.Managers.GameManager gameManager, NetworkRunner runner, bool isMyTurn)
         {
-            if (isMyTurn)
+            string weatherName = gameManager.ActiveWeatherCardName;
+            
+            if (!string.IsNullOrEmpty(weatherName))
             {
-                return $"<color=#00FF00><b>It's your turn!</b></color> <size=95%>Roll the dice!</size>";
+                // Show only the weather name in a stylized format
+                return $"<b>Clima: {weatherName}</b>";
             }
 
-            var activePlayer = gameManager.GetActivePlayer(runner);
-            if (activePlayer.IsRealPlayer)
-            {
-                var activeData = gameManager.GetPlayerData(activePlayer, runner);
-                string name = activeData != null ? (string)activeData.Nick : $"Player {activePlayer.PlayerId}";
-                return $"<color=#FFFF00><b>Waiting for {name} to roll</b></color>";
-            }
-
-            return gameManager.State == Networking.Managers.GameManager.GameState.RollOrder
-                ? "<color=#FFFF00><b>Waiting for players to roll</b></color>"
-                : string.Empty;
+            // Return nothing if there is no active weather
+            return string.Empty;
         }
 
         private void RefreshRivalPlayersUI(NetworkRunner runner)
@@ -993,7 +1018,7 @@ namespace Networking.UI
             if (_turnOrderPanel == null)
             {
                 Debug.LogWarning("[LobbyCanvas] TurnOrderPanel not assigned. Attempting to find it...");
-                _turnOrderPanel = FindFirstObjectByType<TurnOrderPanel>();
+                _turnOrderPanel = FindAnyObjectByType<TurnOrderPanel>(FindObjectsInactive.Include);
                 if (_turnOrderPanel != null)
                 {
                     Debug.Log("[LobbyCanvas] TurnOrderPanel found and assigned!");
@@ -1164,6 +1189,12 @@ namespace Networking.UI
         {
             Debug.Log("[LobbyCanvas] Opening Vuforia panel...");
 
+            _vuforiaScanCompletedInSession = false;
+            if (_closeVuforiaButton != null)
+            {
+                _closeVuforiaButton.interactable = false;
+            }
+
             // Hide GameLobbyPanel
             if (_gameLobbyPanel != null)
             {
@@ -1236,6 +1267,12 @@ namespace Networking.UI
         {
             Debug.Log("[LobbyCanvas] Closing overlay panel...");
 
+            _vuforiaScanCompletedInSession = false;
+            if (_closeVuforiaButton != null)
+            {
+                _closeVuforiaButton.interactable = true;
+            }
+
             bool wasVuforiaOpen = _vuforiaPanel != null && _vuforiaPanel.activeSelf;
             bool wasModelOpen = _modelPanel != null && _modelPanel.activeSelf;
 
@@ -1275,19 +1312,30 @@ namespace Networking.UI
 
             if (wasVuforiaOpen)
             {
+                var runner = Networking.Services.FusionNetworkService.LocalRunner;
+                var gm = Networking.Managers.GameManager.Instance;
+                var localData = runner != null && gm != null ? gm.GetPlayerData(runner.LocalPlayer, runner) : null;
+
+                if (localData != null && localData.IsPendingTeleportTileResolution)
+                {
+                    var tileType = gm.GetTileTypeAtPosition(localData.BoardPosition);
+                    SetTurnNotificationTileAccent(localData.BoardPosition, gm);
+                    ShowTurnNotification(BuildTileNotificationText(tileType));
+                    
+                    localData.RPC_ResolveTeleportLanding();
+                }
+
                 // If the player closed the AR panel while a project scan was pending, treat it as a decline.
                 EnsureProjectFlowUIController();
                 if (_projectFlowUIController != null && _projectFlowUIController.IsProjectFlowVisible)
                 {
-                    var runner = Networking.Services.FusionNetworkService.LocalRunner;
-                    if (runner != null)
+                    if (runner != null && localData != null)
                     {
-                        var localData = Networking.Managers.GameManager.Instance?.GetPlayerData(runner.LocalPlayer, runner);
-                        if (localData != null && (localData.IsAwaitingProjectScan || localData.IsAwaitingProjectDecision))
+                        if (localData.IsAwaitingProjectScan || localData.IsAwaitingProjectDecision)
                         {
                             localData.RPC_RequestDeclinePendingProject();
                         }
-                        else if (localData != null && localData.IsAwaitingCardScan)
+                        else if (localData.IsAwaitingCardScan)
                         {
                             // Closing AR while awaiting a card scan: skip the card and advance the turn.
                             localData.RPC_RequestSkipCardScan();
@@ -1618,6 +1666,25 @@ namespace Networking.UI
             _animationsLogic?.SetTurnNotificationAccentColor(GetLocalCharacterAccentColor(runner));
         }
 
+        private void RefreshVuforiaBackButtonState(NetworkRunner runner)
+        {
+            if (_closeVuforiaButton == null || _vuforiaPanel == null || !_vuforiaPanel.activeSelf)
+            {
+                return;
+            }
+
+            if (!_vuforiaScanCompletedInSession)
+            {
+                var gameManager = Networking.Managers.GameManager.Instance;
+                var localData = gameManager?.GetPlayerData(runner.LocalPlayer, runner);
+                bool hasEventCardInfo = localData != null && !string.IsNullOrWhiteSpace(localData.PendingCardTitle.ToString());
+                bool hasProjectScanResult = localData != null && (localData.IsAwaitingProjectDecision || localData.PendingProjectId > 0);
+                _vuforiaScanCompletedInSession = hasEventCardInfo || hasProjectScanResult;
+            }
+
+            _closeVuforiaButton.interactable = _vuforiaScanCompletedInSession;
+        }
+
         private void SetTurnNotificationTileAccent(int boardPosition, Networking.Managers.GameManager gameManager)
         {
             EnsureAnimationsLogic();
@@ -1720,6 +1787,21 @@ namespace Networking.UI
             else
             {
                 Debug.LogWarning("[LobbyCanvas] Dice result text not assigned!");
+            }
+        }
+
+        public void DisplayWeatherRollResult(int roll, int waterDelta, int moneyDelta)
+        {
+            if (_diceResultText != null)
+            {
+                string waterText = waterDelta >= 0 ? $"+{waterDelta} AGUA" : $"{waterDelta} AGUA";
+                string moneyText = moneyDelta >= 0 ? $"+{moneyDelta} DINERO" : $"{moneyDelta} DINERO";
+                _diceResultText.text = $"Tirada clima: {roll} → {waterText}, {moneyText}";
+                Debug.Log($"[LobbyCanvas] Displayed weather roll: {roll}, {waterText}, {moneyText}");
+            }
+            else
+            {
+                Debug.LogWarning("[LobbyCanvas] Dice result text not assigned for weather roll!");
             }
         }
 

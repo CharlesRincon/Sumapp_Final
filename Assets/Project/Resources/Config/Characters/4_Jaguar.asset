@@ -16,7 +16,7 @@ MonoBehaviour:
   <CharacterName>k__BackingField: Kiara
   <Description>k__BackingField: Jaguar
   <CharacterSprite>k__BackingField: {fileID: 21300000, guid: ad62d10c8b38bba43a675b01021eda04, type: 3}
-  <TurnImage>k__BackingField: {fileID: 21300000, guid: ad62d10c8b38bba43a675b01021eda04, type: 3}
+  <TurnImage>k__BackingField: {fileID: 21300000, guid: a66b83af52441ac40a2038129f8c73ec, type: 3}
   <CharacterColor>k__BackingField: {r: 0.78823537, g: 0.28235295, b: 0.23137257, a: 1}
   <CharacterPrefab>k__BackingField:
     RawGuidValue: 00000000000000000000000000000000

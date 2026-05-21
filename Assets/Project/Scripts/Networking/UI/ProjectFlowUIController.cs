@@ -14,11 +14,20 @@ namespace Networking.UI
         [Space]
         [SerializeField] private GameObject _projectDecisionPanel;
         [SerializeField] private TextMeshProUGUI _projectDecisionTitleText;
+        [SerializeField] private TextMeshProUGUI _projectDecisionPriceText;
         [SerializeField] private TextMeshProUGUI _projectDecisionBodyText;
         [SerializeField] private Button _projectBuyButton;
         [SerializeField] private Button _projectDeclineButton;
+        [Space]
+        [SerializeField] private GameObject _cardInfoPanel;
+        [SerializeField] private TextMeshProUGUI _cardInfoTitleText;
+        [SerializeField] private TextMeshProUGUI _cardInfoLoreText;
+        [SerializeField] private TextMeshProUGUI _cardInfoEffectText;
+        [SerializeField] private float _cardInfoAutoHideSeconds = 2.5f;
 
         public bool IsProjectFlowVisible { get; private set; }
+        private string _lastShownCardTitle;
+        private float _cardInfoVisibleUntil;
 
         private void Awake()
         {
@@ -59,10 +68,17 @@ namespace Networking.UI
         public void InitializePanels()
         {
             IsProjectFlowVisible = false;
+            _lastShownCardTitle = string.Empty;
+            _cardInfoVisibleUntil = 0f;
 
             if (_projectDecisionPanel != null)
             {
                 _projectDecisionPanel.SetActive(false);
+            }
+
+            if (_cardInfoPanel != null)
+            {
+                _cardInfoPanel.SetActive(false);
             }
 
             if (_activeProjectsPanel != null)
@@ -80,8 +96,9 @@ namespace Networking.UI
             bool isAwaitingProjectDecision = localData != null && localData.IsAwaitingProjectDecision;
             bool isAwaitingCardScan = localData != null && localData.IsAwaitingCardScan;
             bool projectFlowActive = isAwaitingProjectScan || isAwaitingProjectDecision;
+            bool hasCardInfo = localData != null && !string.IsNullOrWhiteSpace(localData.PendingCardTitle.ToString());
 
-            IsProjectFlowVisible = projectFlowActive || isAwaitingCardScan;
+            IsProjectFlowVisible = projectFlowActive || isAwaitingCardScan || hasCardInfo;
 
             if (isAwaitingProjectDecision && isVuforiaOpen
                 && _projectDecisionPanel != null && !_projectDecisionPanel.activeSelf)
@@ -89,18 +106,39 @@ namespace Networking.UI
                 _projectDecisionPanel.SetActive(true);
             }
 
-            if (!projectFlowActive && _projectDecisionPanel != null && _projectDecisionPanel.activeSelf)
+            bool showCardInfo = false;
+            if (isVuforiaOpen && hasCardInfo && !isAwaitingProjectDecision)
             {
-                _projectDecisionPanel.SetActive(false);
-                if (isVuforiaOpen)
+                string title = localData.PendingCardTitle.ToString();
+                if (!string.Equals(_lastShownCardTitle, title, System.StringComparison.Ordinal))
                 {
-                    closeVuforiaPanel?.Invoke();
+                    _lastShownCardTitle = title;
+                    _cardInfoVisibleUntil = Time.unscaledTime + Mathf.Max(0.1f, _cardInfoAutoHideSeconds);
                 }
+
+                showCardInfo = Time.unscaledTime < _cardInfoVisibleUntil;
+            }
+            if (_cardInfoPanel != null)
+            {
+                _cardInfoPanel.SetActive(showCardInfo);
             }
 
-            if (!isAwaitingCardScan && isVuforiaOpen && !projectFlowActive)
+            if (showCardInfo)
             {
-                closeVuforiaPanel?.Invoke();
+                if (_cardInfoTitleText != null)
+                {
+                    _cardInfoTitleText.text = localData.PendingCardTitle.ToString();
+                }
+
+                if (_cardInfoLoreText != null)
+                {
+                    _cardInfoLoreText.text = localData.PendingCardLore.ToString();
+                }
+
+                if (_cardInfoEffectText != null)
+                {
+                    _cardInfoEffectText.text = localData.PendingCardEffect.ToString();
+                }
             }
 
             if (!isAwaitingProjectDecision)
@@ -128,12 +166,19 @@ namespace Networking.UI
                 _projectDecisionTitleText.text = projectName;
             }
 
+            if (_projectDecisionPriceText != null)
+            {
+                _projectDecisionPriceText.text = $"Price: {localData.PendingProjectPrice}";
+            }
+
             if (_projectDecisionBodyText != null)
             {
                 var zone = (Networking.Models.ColombiaZone)localData.PendingProjectZone;
+                string description = localData.PendingProjectDescription.ToString();
+                
                 _projectDecisionBodyText.text =
+                    (string.IsNullOrWhiteSpace(description) ? "" : $"{description}\n\n") +
                     $"Zone: {zone}\n" +
-                    $"Price: {localData.PendingProjectPrice}\n" +
                     $"Water / round: {localData.PendingProjectWaterIncome}\n" +
                     $"Money / round: {localData.PendingProjectMoneyIncome}";
             }

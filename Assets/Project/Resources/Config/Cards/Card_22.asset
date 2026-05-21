@@ -1,0 +1,122 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3c672423b1356b64d9c25084a024b204, type: 3}
+  m_Name: Card_22
+  m_EditorClassIdentifier: Assembly-CSharp::Networking.Models.CardDefinition
+  _cardId: 22
+  _displayName: "Florecimiento del P\xE1ramo"
+  _loreText: "Los frailejones alcanzan su m\xE1xima capacidad de regulaci\xF3n h\xEDdrica."
+  _effectDescription: 'Durante 2 rondas:
+
+
+    Todos los proyectos que generen AGUA
+    otorgan 2 de AGUA adicionales.
+
+    Todos los jugadores ganan 2 de AGUA al inicio
+    de su turno.
+
+    Las cartas que recuperen salud a la cuenca duplican su efecto.'
+  _waterDelta: 0
+  _moneyDelta: 0
+  _basinDelta: 0
+  _diceModifier: 0
+  _grantsNegativeShield: 0
+  _grantsDoubleTriviaReward: 0
+  _allPlayersWaterDelta: 0
+  _allPlayersMoneyDelta: 0
+  _roundWaterGainPenalty: 0
+  _roundMoneyGainPenalty: 0
+  _roundProjectMoneyPenalty: 0
+  _roundWaterGainBonus: 0
+  _roundMoneyGainBonus: 0
+  _roundProjectMoneyBonus: 0
+  _teleportMode: 0
+  _selfMoveToTile: -1
+  _teleportTargetTileType: 0
+  _isDroughtEvent: 0
+  _isClimateEvent: 0
+  _isDeforestationEvent: 0
+  _deforestationProjectMoneyPercentPenalty: 0
+  _useBasinThresholdDelta: 0
+  _applyBasinThresholdOnScan: 1
+  _basinThresholdPercentage: 0.5
+  _basinDeltaAboveThreshold: 8
+  _basinDeltaBelowThreshold: -8
+  _useBasinThresholdMoneyDelta: 0
+  _moneyDeltaAboveThreshold: 0
+  _moneyDeltaBelowThreshold: 0
+  _useBasinThresholdDoubleDeltas: 0
+  _invertsTurnOrder: 0
+  _requiresDecision: 0
+  _decisionScope: 0
+  _decisionChoiceA:
+    Label: Option A
+    WaterDelta: 0
+    MoneyDelta: 0
+    BasinDelta: 0
+    AllPlayersWaterDelta: 0
+    AllPlayersMoneyDelta: 0
+    DiceModifier: 0
+    GrantsNegativeShield: 0
+    RoundWaterGainPenalty: 0
+    RoundWaterGainBonus: 0
+    RoundMoneyGainPenalty: 0
+    RoundMoneyGainBonus: 0
+    RoundProjectMoneyPenalty: 0
+    RoundProjectMoneyBonus: 0
+    IsDroughtEvent: 0
+    IsClimateEvent: 0
+    IsDeforestationEvent: 0
+    DeforestationProjectMoneyPercentPenalty: 0
+  _decisionChoiceB:
+    Label: Option B
+    WaterDelta: 0
+    MoneyDelta: 0
+    BasinDelta: 0
+    AllPlayersWaterDelta: 0
+    AllPlayersMoneyDelta: 0
+    DiceModifier: 0
+    GrantsNegativeShield: 0
+    RoundWaterGainPenalty: 0
+    RoundWaterGainBonus: 0
+    RoundMoneyGainPenalty: 0
+    RoundMoneyGainBonus: 0
+    RoundProjectMoneyPenalty: 0
+    RoundProjectMoneyBonus: 0
+    IsDroughtEvent: 0
+    IsClimateEvent: 0
+    IsDeforestationEvent: 0
+    DeforestationProjectMoneyPercentPenalty: 0
+  _conditionalMoneyOnProjects: 0
+  _moneyWithActiveProject: 0
+  _moneyWithoutActiveProject: 0
+  _isWeatherCard: 1
+  _weatherTag: 0
+  _weatherDurationRounds: 2
+  _weatherHydricWaterFlatBonus: 0
+  _weatherAllPlayersWaterPerTurnDelta: 2
+  _weatherAllPlayersWaterOnTileResolveDelta: 0
+  _weatherDiceRollFlatBonus: 0
+  _weatherRollDependentRewards: 0
+  _weatherProjectMoneyPercentPenalty: 0
+  _weatherProjectMoneyFlatBonusPerRound: 0
+  _weatherApplyBasinDeltaAtRoundEnd: 1
+  _weatherBasinFlatPerRound: 0
+  _weatherLockBasin: 0
+  _weatherNullifyHydricWater: 0
+  _weatherProjectWaterFlatBonusPerRound: 2
+  _weatherDoubleBasinRecovery: 1
+  _conditionalWaterIfWeatherTag: 0
+  _conditionalWaterDelta: 0
+  _terminatesActiveWeather: 0
+  _terminatesWeatherTag: 0
+  _basinFlatOnWeatherTerminate: 0

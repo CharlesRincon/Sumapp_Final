@@ -28,6 +28,7 @@ namespace Networking.UI
 
         [Header("Local Testing")]
         [SerializeField] private int _fallbackRequiredRepairs = 10;
+        [SerializeField] private float _minHoleSeparation = 1.0f;
 
         private PipeMinigameManager _manager;
         private NetworkRunner _runner;
@@ -40,7 +41,7 @@ namespace Networking.UI
         {
             if (OnGameEndEvent == null)
                 OnGameEndEvent = Resources.Load<FusionEvent>("Events/OnGameEndEvent");
-            
+
             if (OnGameEndEvent != null)
                 OnGameEndEvent.RegisterResponse(OnGameEnd);
         }
@@ -65,7 +66,7 @@ namespace Networking.UI
                 InitializeProgressUI();
                 _playerCardsInitialized = true;
             }
-            
+
             // Spawn initial holes
             for (int i = 0; i < 3; i++)
             {
@@ -91,7 +92,7 @@ namespace Networking.UI
             }
 
             UpdateProgressUI();
-            
+
             if (_goalText != null)
             {
                 int current = 0;
@@ -120,7 +121,7 @@ namespace Networking.UI
         private void InitializeProgressUI()
         {
             if (_progressContainer == null || _playerProgressPrefab == null) return;
-            
+
             if (_runner == null)
             {
                 Debug.Log("[PipeMinigameUI] Local testing: creating mock progress for LocalPlayer.");
@@ -175,24 +176,23 @@ namespace Networking.UI
         {
             if (_gameEnded || _spawnPoints.Length == 0) return;
 
-            // Find spawn points that don't have an active hole already
             var availablePoints = new List<Transform>();
             foreach (var sp in _spawnPoints)
             {
                 if (sp == null) continue;
-                
-                // Check if any active hole is at this spawn point's position
-                bool isOccupied = false;
+
+                bool tooClose = false;
                 foreach (var activeHole in _activeHoles)
                 {
-                    if (activeHole != null && Vector3.Distance(activeHole.transform.position, sp.position) < 0.1f)
+                    if (activeHole == null) continue;
+                    if (Vector3.Distance(activeHole.transform.position, sp.position) < _minHoleSeparation)
                     {
-                        isOccupied = true;
+                        tooClose = true;
                         break;
                     }
                 }
 
-                if (!isOccupied)
+                if (!tooClose)
                 {
                     availablePoints.Add(sp);
                 }
@@ -200,13 +200,11 @@ namespace Networking.UI
 
             if (availablePoints.Count == 0)
             {
-                Debug.LogWarning("[PipeMinigameUI] No free spawn points available for a new hole.");
+                Debug.LogWarning("[PipeMinigameUI] No spawn points available that satisfy the minimum hole separation.");
                 return;
             }
 
-            // Pick a random point from the available ones
             Transform spawnPoint = availablePoints[Random.Range(0, availablePoints.Count)];
-            
             var holeGO = Instantiate(_holePrefab, spawnPoint.position, Quaternion.identity, _holeContainer);
             var hole = holeGO.GetComponent<PipeHole>();
             if (hole != null)
@@ -219,7 +217,7 @@ namespace Networking.UI
         public void OnHoleRepaired(PipeHole hole)
         {
             _activeHoles.Remove(hole);
-            
+
             if (_runner == null)
             {
                 _localTestRepairCount++;

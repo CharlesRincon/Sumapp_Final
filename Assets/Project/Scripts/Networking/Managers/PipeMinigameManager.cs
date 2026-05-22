@@ -37,9 +37,12 @@ namespace Networking.Managers
         public bool IsGameActive() => GameActive && !IsRaceEnded;
         public int RequiredRepairs => _requiredRepairs;
 
+        private NetworkRunner RunnerRef => _runner ?? Runner;
+
         public int GetPlayerRepairCount(PlayerRef player)
         {
-            var playerData = GameManager.Instance.GetPlayerData(player, _runner);
+            var runner = RunnerRef;
+            var playerData = GameManager.Instance.GetPlayerData(player, runner);
             return playerData != null ? playerData.MinigameClickCount : 0;
         }
 
@@ -61,9 +64,10 @@ namespace Networking.Managers
         {
             if (!Object.HasStateAuthority) return;
 
-            foreach (var player in _runner.ActivePlayers)
+            var runner = RunnerRef;
+            foreach (var player in runner.ActivePlayers)
             {
-                var playerData = GameManager.Instance.GetPlayerData(player, _runner);
+                var playerData = GameManager.Instance.GetPlayerData(player, runner);
                 if (playerData != null)
                 {
                     playerData.MinigameClickCount = 0;
@@ -127,7 +131,7 @@ namespace Networking.Managers
         public List<(PlayerRef player, int count, string name)> GetLeaderboard()
         {
             var leaderboard = new List<(PlayerRef, int, string)>();
-            
+
             if (_runner == null)
             {
                 leaderboard.Add((PlayerRef.None, RequiredRepairs, "Local Player"));

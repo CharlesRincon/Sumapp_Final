@@ -143,18 +143,17 @@ namespace Networking.UI
 
         public void ShowWeatherRollResult(int roll, int waterDelta, int moneyDelta)
         {
-            _pendingWeatherRoll = roll;
-            _pendingWeatherWaterDelta = waterDelta;
-            _pendingWeatherMoneyDelta = moneyDelta;
-            _hasPendingWeatherRoll = true;
-
             var lobbyCanvas = FindFirstObjectByType<LobbyCanvas>();
-            if (lobbyCanvas != null && (lobbyCanvas.IsTurnNotificationPanelActive || lobbyCanvas.IsWaitingForTurnNotification))
+            if (lobbyCanvas != null && lobbyCanvas.IsTurnNotificationPanelActive)
             {
-                Debug.Log("[TurnOrderPanel] Turn notification active or pending; delaying weather roll display until animation completes.");
-                
+                Debug.Log("[TurnOrderPanel] Turn notification active; delaying weather roll display until animation completes.");
+                _pendingWeatherRoll = roll;
+                _pendingWeatherWaterDelta = waterDelta;
+                _pendingWeatherMoneyDelta = moneyDelta;
+                _hasPendingWeatherRoll = true;
+
                 if (_weatherQueueCoroutine == null)
-                    _weatherQueueCoroutine = lobbyCanvas.StartCoroutine(DelayWeatherRollUntilNotificationHidden(lobbyCanvas));
+                    _weatherQueueCoroutine = StartCoroutine(DelayWeatherRollUntilNotificationHidden(lobbyCanvas));
 
                 return;
             }
@@ -164,8 +163,7 @@ namespace Networking.UI
 
         private IEnumerator DelayWeatherRollUntilNotificationHidden(LobbyCanvas lobbyCanvas)
         {
-            // Wait while the notification is active OR while we are still waiting for it to trigger
-            while (lobbyCanvas != null && (lobbyCanvas.IsTurnNotificationPanelActive || lobbyCanvas.IsWaitingForTurnNotification))
+            while (lobbyCanvas != null && lobbyCanvas.IsTurnNotificationPanelActive)
             {
                 yield return null;
             }
@@ -192,24 +190,18 @@ namespace Networking.UI
             _runner = FindFirstObjectByType<NetworkRunner>();
             _phaseActive = true;
             _isWeatherRollPhase = true;
-            _hasPendingWeatherRoll = true;
-            _pendingWeatherRoll = roll;
-            _pendingWeatherWaterDelta = waterDelta;
-            _pendingWeatherMoneyDelta = moneyDelta;
 
             if (_instructionText != null)
                 _instructionText.text = "Efecto del clima";
 
-            bool canRoll = IsLocalActivePlayerTurn();
             if (_rollButton != null)
-            {
-                _rollButton.gameObject.SetActive(true);
-                _rollButton.interactable = canRoll;
-            }
+                _rollButton.gameObject.SetActive(false);
 
             if (_playerRollText != null)
             {
-                _playerRollText.text = canRoll ? "Pulsa para tirar" : "Esperando al jugador activo...";
+                string waterText = waterDelta >= 0 ? $"+{waterDelta} AGUA" : $"{waterDelta} AGUA";
+                string moneyText = moneyDelta >= 0 ? $"+{moneyDelta} DINERO" : $"{moneyDelta} DINERO";
+                _playerRollText.text = $"Tirada: {roll}\n{waterText}, {moneyText}";
             }
 
             if (_turnOrderListContainer != null)
@@ -217,18 +209,10 @@ namespace Networking.UI
                 foreach (Transform child in _turnOrderListContainer)
                     Destroy(child.gameObject);
             }
-        }
 
-        private bool IsLocalActivePlayerTurn()
-        {
-            if (_runner == null)
-                _runner = FindFirstObjectByType<NetworkRunner>();
-
-            if (_runner == null)
-                return false;
-
-            var localData = Networking.Managers.GameManager.Instance?.GetPlayerData(_runner.LocalPlayer, _runner);
-            return localData != null && localData.IsActiveTurn;
+            if (_weatherDisplayCoroutine != null)
+                StopCoroutine(_weatherDisplayCoroutine);
+            _weatherDisplayCoroutine = StartCoroutine(CloseWeatherRollPanelAfterDelay());
         }
 
         private IEnumerator CloseWeatherRollPanelAfterDelay()
@@ -247,51 +231,7 @@ namespace Networking.UI
         private void OnRollButtonPressed()
         {
             if (_isRolling || _localPlayerRolled) return;
-
-            if (_isWeatherRollPhase)
-            {
-                StartCoroutine(WeatherRollAnimationCoroutine());
-            }
-            else
-            {
-                StartCoroutine(RollCoroutine());
-            }
-        }
-
-        private IEnumerator WeatherRollAnimationCoroutine()
-        {
-            if (!_hasPendingWeatherRoll)
-            {
-                Debug.LogWarning("[TurnOrderPanel] No pending weather roll to animate.");
-                yield break;
-            }
-
-            _isRolling = true;
-            _localPlayerRolled = true;
-            if (_rollButton != null)
-                _rollButton.interactable = false;
-
-            float rollDuration = 2f;
-            float elapsed = 0f;
-
-            while (elapsed < rollDuration)
-            {
-                if (_playerRollText != null)
-                    _playerRollText.text = Random.Range(1, 7).ToString();
-                elapsed += Time.deltaTime;
-                yield return null;
-            }
-
-            if (_playerRollText != null)
-            {
-                string waterText = _pendingWeatherWaterDelta >= 0 ? $"+{_pendingWeatherWaterDelta} AGUA" : $"{_pendingWeatherWaterDelta} AGUA";
-                string moneyText = _pendingWeatherMoneyDelta >= 0 ? $"+{_pendingWeatherMoneyDelta} DINERO" : $"{_pendingWeatherMoneyDelta} DINERO";
-                _playerRollText.text = $"Tirada: {_pendingWeatherRoll}\n{waterText}, {moneyText}";
-            }
-
-            _hasPendingWeatherRoll = false;
-            _weatherDisplayCoroutine = StartCoroutine(CloseWeatherRollPanelAfterDelay());
-            _isRolling = false;
+            StartCoroutine(RollCoroutine());
         }
 
         /// <summary>
@@ -327,7 +267,7 @@ namespace Networking.UI
                 }
                 else
                 {
-                    localData.RPC_RequestValidatedTurnRoll();
+                    localData.RPC_RequestValidatedTurnRoll(0);
                     Debug.Log($"[TurnOrderPanel] RPC_RequestValidatedTurnRoll called for local player {_runner.LocalPlayer.PlayerId}");
                 }
             }
@@ -460,7 +400,7 @@ namespace Networking.UI
                 {
                     var data = GetPlayerData(player);
                     string playerName = data != null ? (string)data.Nick : $"Player {player.PlayerId}";
-                    text.text = $"{position}. {playerName} (rolled {roll})";
+                    text.text = $"{position}. {playerName} (sacó {roll})";
                     Debug.Log($"[TurnOrderPanel] {text.text}");
                 }
             }

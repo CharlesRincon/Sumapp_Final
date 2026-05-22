@@ -52,34 +52,29 @@ namespace Networking.UI
 
             // 2-second animation
             float elapsed = 0f;
+            int lastAnimRoll = 1;
             while (elapsed < 2f)
             {
-                _lobbyCanvas.DisplayDiceResult(Random.Range(1, 11));
+                lastAnimRoll = Random.Range(1, 11);
+                _lobbyCanvas.DisplayDiceResult(lastAnimRoll);
                 elapsed += Time.deltaTime;
                 yield return null;
             }
 
-            // Request validated roll from host
+            // Pick the final roll locally so we can show it immediately
+            int finalRoll = Random.Range(1, 11);
+            _lobbyCanvas.DisplayDiceResult(finalRoll);
+            Debug.Log($"[DiceUI] Local final roll determined: {finalRoll}");
+
+            // Request validated roll from host using our local value
             var localData = Networking.Managers.GameManager.Instance?.GetPlayerData(runner.LocalPlayer, runner);
             if (localData != null)
             {
-                localData.RPC_RequestValidatedTurnRoll();
-                Debug.Log($"[DiceUI] RPC_RequestValidatedTurnRoll sent for player {runner.LocalPlayer.PlayerId}");
+                localData.RPC_RequestValidatedTurnRoll(finalRoll);
+                Debug.Log($"[DiceUI] RPC_RequestValidatedTurnRoll sent for player {runner.LocalPlayer.PlayerId} with value {finalRoll}");
 
-                // Wait for networked LastDiceRoll to sync back
-                float waitTime = 0f;
-                int previousRoll = localData.LastDiceRoll;
-                while (localData.LastDiceRoll == previousRoll && waitTime < 3f)
-                {
-                    waitTime += Time.deltaTime;
-                    yield return null;
-                }
-
-                int finalRoll = localData.LastDiceRoll;
-                _lobbyCanvas.DisplayDiceResult(finalRoll);
-                Debug.Log($"[DiceUI] Synced dice result: {finalRoll}");
-
-                // Keep the final result visible briefly before allowing the next UI phase.
+                // No need to wait for sync to show the number anymore, but we'll wait briefly 
+                // to let the network catch up and keep the UI stable.
                 yield return new WaitForSeconds(0.35f);
             }
             else
@@ -87,7 +82,7 @@ namespace Networking.UI
                 Debug.LogError("[DiceUI] Local PlayerSessionData not found!");
             }
 
-            _lobbyCanvas.NotifyDiceRollCompleted();
+            _lobbyCanvas.NotifyDiceRollCompleted(finalRoll);
             _isRolling = false;
         }
     }

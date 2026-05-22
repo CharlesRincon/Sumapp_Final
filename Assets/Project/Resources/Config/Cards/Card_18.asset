@@ -15,7 +15,7 @@ MonoBehaviour:
   _cardId: 18
   _displayName: "Fen\xF3meno de El Ni\xF1o"
   _loreText: "La sequ\xEDa reduce el caudal de r\xEDos y embalses."
-  _effectDescription: "Durante 2 rondas:\n\nLas zonas h\xEDdricas otorgan 1 de AGUA
+  _effectDescription: "Durante 2 rondas:\nLas zonas h\xEDdricas otorgan 1 de AGUA
     menos (m\xEDnimo 1).\nTodos los jugadores pierden 1 de AGUA al inicio de su turno.\nLos
     proyectos generan 50% menos de DINERO.\nLa cuenca pierde 5% al inicio de cada
     ronda."

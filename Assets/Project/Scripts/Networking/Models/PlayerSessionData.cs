@@ -74,10 +74,10 @@ namespace Networking.Models
         public int PendingProjectId { get; set; }
 
         [Networked]
-        public NetworkString<_32> PendingProjectName { get; set; }
+        public NetworkString<_128> PendingProjectName { get; set; }
         
         [Networked]
-        public NetworkString<_128> PendingProjectDescription { get; set; }
+        public NetworkString<_512> PendingProjectDescription { get; set; }
 
         [Networked]
         public int PendingProjectPrice { get; set; }
@@ -101,13 +101,13 @@ namespace Networking.Models
         public bool IsAwaitingCardScan { get; set; }
 
         [Networked]
-        public NetworkString<_64> PendingCardTitle { get; set; }
+        public NetworkString<_128> PendingCardTitle { get; set; }
 
         [Networked]
-        public NetworkString<_128> PendingCardLore { get; set; }
+        public NetworkString<_512> PendingCardLore { get; set; }
 
         [Networked]
-        public NetworkString<_128> PendingCardEffect { get; set; }
+        public NetworkString<_512> PendingCardEffect { get; set; }
 
         [Networked]
         public int BoardPosition { get; set; }
@@ -203,10 +203,10 @@ namespace Networking.Models
         /// Called by host only to transition all players to the minigame.
         /// </summary>
         [Rpc(sources: RpcSources.StateAuthority, targets: RpcTargets.All, HostMode = RpcHostMode.SourceIsHostPlayer)]
-        public void RPC_LoadMinigameScene()
+        public void RPC_LoadMinigameScene(string sceneName)
         {
-            Debug.Log("[PlayerSessionData] RPC_LoadMinigameScene called. Loading minigame...");
-            UnityEngine.SceneManagement.SceneManager.LoadScene("Minigame");
+            Debug.Log($"[PlayerSessionData] RPC_LoadMinigameScene called for {sceneName}. Loading minigame...");
+            UnityEngine.SceneManagement.SceneManager.LoadScene(sceneName);
         }
 
         /// <summary>
@@ -424,14 +424,15 @@ namespace Networking.Models
         /// </summary>
         public void RPC_RollDice()
         {
-            RPC_RequestValidatedTurnRoll();
+            RPC_RequestValidatedTurnRoll(0);
         }
 
         /// <summary>
         /// Input-authority request; host validates active-turn and resolves full turn execution.
+        /// clientRoll: optional value picked by client during animation to show results immediately.
         /// </summary>
         [Rpc(sources: RpcSources.InputAuthority, targets: RpcTargets.StateAuthority, HostMode = RpcHostMode.SourceIsHostPlayer)]
-        public void RPC_RequestValidatedTurnRoll()
+        public void RPC_RequestValidatedTurnRoll(int clientRoll)
         {
             if (!Object.HasStateAuthority)
             {
@@ -456,7 +457,11 @@ namespace Networking.Models
                     return;
                 }
 
-                LastDiceRoll = networkService.GenerateValidatedDiceRoll();
+                if (clientRoll > 0)
+                    LastDiceRoll = clientRoll;
+                else
+                    LastDiceRoll = networkService.GenerateValidatedDiceRoll();
+
                 LastDiceRollTime = (float)runner.SimulationTime;
 
                 Networking.Events.NetworkEventDefinitions.Instance?.OnDiceRolledEvent?.Raise(Object.InputAuthority, runner);
@@ -475,7 +480,11 @@ namespace Networking.Models
                 return;
             }
 
-            LastDiceRoll = networkService.GenerateValidatedDiceRoll();
+            if (clientRoll > 0)
+                LastDiceRoll = clientRoll;
+            else
+                LastDiceRoll = networkService.GenerateValidatedDiceRoll();
+
             LastDiceRollTime = (float)runner.SimulationTime;
             HasRolledThisTurn = true;
 

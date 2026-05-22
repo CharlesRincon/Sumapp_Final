@@ -15,8 +15,8 @@ MonoBehaviour:
   _cardId: 20
   _displayName: "Heladas del P\xE1ramo"
   _loreText: "Las bajas temperaturas alteran el equilibrio h\xEDdrico de los Andes."
-  _effectDescription: "Durante 2 rondas:\n\nLa cuenca no puede recuperarse ni ser
-    da\xF1ada por ning\xFAn medio.\nLas zonas h\xEDdricas no otorgan AGUA.\n\nRestauraci\xF3n
+  _effectDescription: "Durante 2 rondas:\nLa cuenca no puede recuperarse ni ser da\xF1ada
+    por ning\xFAn medio.\nLas zonas h\xEDdricas no otorgan AGUA.\n\nRestauraci\xF3n
     especial:\nSi se roba Recuperaci\xF3n del P\xE1ramo, este clima termina inmediatamente
     y la cuenca recupera 10%."
   _waterDelta: 0

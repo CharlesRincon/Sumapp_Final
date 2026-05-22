@@ -15,7 +15,7 @@ MonoBehaviour:
   _cardId: 21
   _displayName: Temporada de Lluvias
   _loreText: "Las precipitaciones estabilizan el caudal de r\xEDos y acu\xEDferos."
-  _effectDescription: "Durante 2 rondas:\n\nLa cuenca recupera 3 de salud al inicio
+  _effectDescription: "Durante 2 rondas:\nLa cuenca recupera 3 de salud al inicio
     de cada ronda.\nLas zonas h\xEDdricas otorgan 2 de AGUA adicionales.\nLos jugadores
     con proyectos activos ganan 1 de DINERO adicional por ronda."
   _waterDelta: 0

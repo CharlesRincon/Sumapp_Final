@@ -1074,7 +1074,10 @@ _roundWaterGainFlatPenalty    = 0; _roundWaterGainPercentPenalty  = 0;
                 return;
             }
 
-            AdvanceTurn(runner);
+            if (!playerData.IsPendingTeleportTileResolution)
+            {
+                AdvanceTurn(runner);
+            }
         }
 
         public void HandleDecisionVote(PlayerRef player, NetworkRunner runner, int choice)
@@ -1140,7 +1143,11 @@ _roundWaterGainFlatPenalty    = 0; _roundWaterGainPercentPenalty  = 0;
             }
             _pendingDecisionCardId = -1;
 
-            AdvanceTurn(runner);
+            var scanningPlayerData = GetPlayerData(_pendingDecisionScanningPlayer, runner);
+            if (scanningPlayerData == null || !scanningPlayerData.IsPendingTeleportTileResolution)
+            {
+                AdvanceTurn(runner);
+            }
         }
 
         public void HandleSkipCardScan(PlayerRef player, NetworkRunner runner)
@@ -1734,13 +1741,18 @@ _roundWaterGainFlatPenalty    = 0; _roundWaterGainPercentPenalty  = 0;
             }
 
             State = GameState.Minigame;
-            Debug.Log($"[GameManager] All players ready. Sending everyone to minigame.");
+            
+            // Randomly select between the original minigame and the new pipe minigame
+            string[] minigameScenes = { "Minigame", "PipeMinigame" };
+            string selectedScene = minigameScenes[Random.Range(0, minigameScenes.Length)];
+            
+            Debug.Log($"[GameManager] All players ready. Sending everyone to {selectedScene}.");
 
             foreach (var player in runner.ActivePlayers)
             {
                 var data = GetPlayerData(player, runner);
                 if (data != null)
-                    data.RPC_LoadMinigameScene();
+                    data.RPC_LoadMinigameScene(selectedScene);
             }
         }
 

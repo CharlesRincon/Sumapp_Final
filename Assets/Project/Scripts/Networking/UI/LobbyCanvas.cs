@@ -580,13 +580,73 @@ namespace Networking.UI
             }
         }
 
-        public void NotifyDiceRollCompleted()
+        public void NotifyDiceRollCompleted(int diceValue)
         {
+            // Animate character jump first, then show turn notification
+            StartCoroutine(AnimateCharacterJumpThenShowNotification(diceValue));
+        }
+
+        private IEnumerator AnimateCharacterJumpThenShowNotification(int jumps)
+        {
+            // Get character image rect and animate jump
+            if (_gameLobbyCharacterImage != null)
+            {
+                RectTransform rectTransform = _gameLobbyCharacterImage.GetComponent<RectTransform>();
+                if (rectTransform != null)
+                {
+                    Vector2 originalPosition = rectTransform.anchoredPosition;
+                    float jumpHeight = 80f;  // How high to jump
+                    float jumpUpDuration = 0.2f;  // Reduced duration for repeated jumps
+                    float jumpDownDuration = 0.2f;
+
+                    for (int i = 0; i < jumps; i++)
+                    {
+                        // Jump up
+                        float elapsedUp = 0f;
+                        while (elapsedUp < jumpUpDuration)
+                        {
+                            elapsedUp += Time.deltaTime;
+                            float progress = Mathf.Clamp01(elapsedUp / jumpUpDuration);
+                            float easeProgress = progress < 0.5f 
+                                ? 2f * progress * progress 
+                                : -1f + (4f - 2f * progress) * progress; // easeOutQuad
+                            
+                            Vector2 newPos = originalPosition;
+                            newPos.y += jumpHeight * easeProgress;
+                            rectTransform.anchoredPosition = newPos;
+                            yield return null;
+                        }
+
+                        // Jump down back to original position
+                        float elapsedDown = 0f;
+                        while (elapsedDown < jumpDownDuration)
+                        {
+                            elapsedDown += Time.deltaTime;
+                            float progress = Mathf.Clamp01(elapsedDown / jumpDownDuration);
+                            float easeProgress = progress * progress; // easeInQuad
+                            
+                            Vector2 newPos = originalPosition;
+                            newPos.y += jumpHeight * (1f - easeProgress);
+                            rectTransform.anchoredPosition = newPos;
+                            yield return null;
+                        }
+
+                        // Ensure we're exactly at original position before next jump
+                        rectTransform.anchoredPosition = originalPosition;
+                        
+                        // Brief pause between jumps
+                        yield return new WaitForSeconds(0.05f);
+                    }
+                }
+                else
+                {
+                    Debug.LogWarning("[LobbyCanvas] CharacterImage RectTransform not found!");
+                }
+            }
+
             _diceRolling = false;
 
-            // Show tile info now that the dice has landed.
-            // Some tiles resolve synchronously and advance the turn before DiceUI finishes,
-            // so this must not depend on localData.IsActiveTurn still being true.
+            // Now show tile info after animation completes
             var runner = Networking.Services.FusionNetworkService.LocalRunner;
             if (runner != null)
             {
@@ -623,7 +683,7 @@ namespace Networking.UI
         private static string BuildRoundStatusText(Networking.Managers.GameManager gameManager)
         {
             int currentRound = Mathf.Max(1, gameManager.CurrentRound);
-            return $"Round {currentRound}/{gameManager.MaxRoundsToWin}";
+            return $"Ronda {currentRound}/{gameManager.MaxRoundsToWin}";
         }
 
         private static string BuildTurnStatusText(Networking.Managers.GameManager gameManager, NetworkRunner runner, bool isMyTurn)
@@ -1133,7 +1193,7 @@ namespace Networking.UI
                 if (playerData != null)
                 {
                     Debug.Log($"[LobbyCanvas] Calling RPC_LoadMinigameScene for player {player}");
-                    playerData.RPC_LoadMinigameScene();
+                    playerData.RPC_LoadMinigameScene("Minigame");
                 }
                 else
                 {
@@ -1316,6 +1376,7 @@ namespace Networking.UI
                 var gm = Networking.Managers.GameManager.Instance;
                 var localData = runner != null && gm != null ? gm.GetPlayerData(runner.LocalPlayer, runner) : null;
 
+                bool justResolvedTeleport = false;
                 if (localData != null && localData.IsPendingTeleportTileResolution)
                 {
                     var tileType = gm.GetTileTypeAtPosition(localData.BoardPosition);
@@ -1323,11 +1384,13 @@ namespace Networking.UI
                     ShowTurnNotification(BuildTileNotificationText(tileType));
                     
                     localData.RPC_ResolveTeleportLanding();
+                    justResolvedTeleport = true;
                 }
 
                 // If the player closed the AR panel while a project scan was pending, treat it as a decline.
+                // Skip this if we just resolved a teleport landing, to give the player a chance to scan the target tile.
                 EnsureProjectFlowUIController();
-                if (_projectFlowUIController != null && _projectFlowUIController.IsProjectFlowVisible)
+                if (!justResolvedTeleport && _projectFlowUIController != null && _projectFlowUIController.IsProjectFlowVisible)
                 {
                     if (runner != null && localData != null)
                     {

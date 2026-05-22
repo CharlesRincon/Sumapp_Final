@@ -23,7 +23,7 @@ namespace Networking.UI
         [SerializeField] private TextMeshProUGUI _cardInfoTitleText;
         [SerializeField] private TextMeshProUGUI _cardInfoLoreText;
         [SerializeField] private TextMeshProUGUI _cardInfoEffectText;
-        [SerializeField] private float _cardInfoAutoHideSeconds = 2.5f;
+        [SerializeField] private float _cardInfoAutoHideSeconds = 5.0f;
 
         public bool IsProjectFlowVisible { get; private set; }
         private string _lastShownCardTitle;
@@ -173,14 +173,8 @@ namespace Networking.UI
 
             if (_projectDecisionBodyText != null)
             {
-                var zone = (Networking.Models.ColombiaZone)localData.PendingProjectZone;
                 string description = localData.PendingProjectDescription.ToString();
-                
-                _projectDecisionBodyText.text =
-                    (string.IsNullOrWhiteSpace(description) ? "" : $"{description}\n\n") +
-                    $"Zone: {zone}\n" +
-                    $"Water / round: {localData.PendingProjectWaterIncome}\n" +
-                    $"Money / round: {localData.PendingProjectMoneyIncome}";
+                _projectDecisionBodyText.text = description;
             }
 
             if (_projectBuyButton != null)
@@ -265,7 +259,7 @@ namespace Networking.UI
                     money = m;
                 }
 
-                label.text = $"{name}\n+{water} water/round  +{money} money/round";
+                label.text = $"{name}";
                 entryIndex++;
             }
         }

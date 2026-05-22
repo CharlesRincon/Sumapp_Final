@@ -44,20 +44,20 @@ namespace Networking.Managers
                 return;
             }
 
-            Debug.Log("[MinigameInitializer] Host spawning MinigameManager...");
-            var manager = runner.Spawn(
+            Debug.Log("[MinigameInitializer] Host spawning MinigameManager prefab...");
+            var spawnedObj = runner.Spawn(
                 _minigameManagerPrefab,
                 inputAuthority: runner.LocalPlayer
-            ).GetComponent<Networking.Managers.MinigameManager>();
+            );
 
-            if (manager == null)
+            if (spawnedObj == null)
             {
-                Debug.LogError("[MinigameInitializer] Failed to spawn MinigameManager.");
+                Debug.LogError("[MinigameInitializer] Failed to spawn minigame manager object.");
                 return;
             }
 
             _hasSpawned = true;
-            Debug.Log("[MinigameInitializer] ✓ MinigameManager spawned successfully.");
+            Debug.Log($"[MinigameInitializer] ✓ Minigame manager spawned successfully: {spawnedObj.name}");
         }
     }
 }

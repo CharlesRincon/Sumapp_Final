@@ -80,7 +80,7 @@ namespace Networking.Managers
             }
 
             // Call the RPC to roll the dice
-            playerData.RPC_RequestValidatedTurnRoll();
+            playerData.RPC_RequestValidatedTurnRoll(0);
             Debug.Log($"[DiceManager] Dice roll requested for player {player.PlayerId}");
         }
 

@@ -27,90 +27,135 @@ namespace Networking.Services
             Loaded
         }
 
+        private bool _isLaunching;
+        public static bool IsRetrying { get; private set; }
+
         public async void Launch(GameMode mode, string room, INetworkSceneManager sceneLoader)
         {
-            string normalizedRoom = (room ?? string.Empty).Trim();
-            if (string.IsNullOrWhiteSpace(normalizedRoom))
+            if (_isLaunching)
             {
-                SetConnectionStatus(ConnectionStatus.Failed, "Room name is required.");
-                Debug.LogError("[FusionLauncher] Launch aborted: room name is empty.");
+                Debug.LogWarning("[FusionLauncher] Launch already in progress.");
                 return;
             }
 
-            SetConnectionStatus(ConnectionStatus.Connecting, "Connecting...");
-
-            DontDestroyOnLoad(gameObject);
-
-            int maxAttempts = mode == GameMode.Client ? MaxClientJoinAttempts : 1;
-
-            for (int attempt = 1; attempt <= maxAttempts; attempt++)
+            _isLaunching = true;
+            try
             {
-                await EnsureRunnerReady(mode);
-
-                try
+                string normalizedRoom = (room ?? string.Empty).Trim();
+                if (string.IsNullOrWhiteSpace(normalizedRoom))
                 {
-                    var args = new StartGameArgs()
-                    {
-                        GameMode = mode,
-                        SessionName = normalizedRoom,
-                        SceneManager = sceneLoader,
-                        PlayerCount = 6,  // Max 6 players (SUMAK design: 2-6 players)
-                        ConnectionToken = FusionNetworkService.BuildConnectionToken(
-                            PlayerPrefs.GetString("Nick", string.Empty),
-                            PlayerPrefs.GetString("RoomPassword", string.Empty))
-                    };
-
-                    Debug.Log($"[FusionLauncher] Attempt {attempt}/{maxAttempts} — Room: '{normalizedRoom}', Mode: {mode}");
-
-                    StartGameResult result = await _runner.StartGame(args);
-
-                    if (result.Ok)
-                    {
-                        SetConnectionStatus(ConnectionStatus.Connected, "Connected.");
-                        Debug.Log($"[FusionLauncher] Connected to room '{normalizedRoom}' as {mode} (attempt {attempt}/{maxAttempts}).");
-                        return;
-                    }
-
-                    string reason = string.IsNullOrWhiteSpace(result.ErrorMessage)
-                        ? result.ShutdownReason.ToString()
-                        : result.ErrorMessage;
-
-                    bool shouldRetry = ShouldRetryJoin(mode, reason, attempt, maxAttempts);
-                    if (!shouldRetry)
-                    {
-                        SetConnectionStatus(ConnectionStatus.Failed, reason);
-                        Debug.LogError($"[FusionLauncher] StartGame failed for room '{normalizedRoom}'. Reason: {reason}");
-                        await SafeShutdownRunner();
-                        return;
-                    }
-
-                    int delayMs = GetRetryDelayMs(attempt);
-                    SetConnectionStatus(ConnectionStatus.Connecting, $"Retrying join ({attempt}/{maxAttempts})...");
-                    Debug.LogWarning($"[FusionLauncher] Join retry scheduled in {delayMs}ms for room '{normalizedRoom}'. Reason: {reason}");
-
-                    await SafeShutdownRunner();
-                    await Task.Delay(delayMs);
+                    SetConnectionStatus(ConnectionStatus.Failed, "Room name is required.");
+                    Debug.LogError("[FusionLauncher] Launch aborted: room name is empty.");
+                    return;
                 }
-                catch (Exception ex)
+
+                SetConnectionStatus(ConnectionStatus.Connecting, "Connecting...");
+
+                if (gameObject.transform.parent != null)
                 {
-                    bool shouldRetry = ShouldRetryJoin(mode, ex.Message, attempt, maxAttempts);
-                    if (!shouldRetry)
-                    {
-                        SetConnectionStatus(ConnectionStatus.Failed, ex.Message);
-                        Debug.LogError($"[FusionLauncher] Exception during Launch: {ex.Message}");
-                        await SafeShutdownRunner();
-                        return;
-                    }
-
-                    int delayMs = GetRetryDelayMs(attempt);
-                    SetConnectionStatus(ConnectionStatus.Connecting, $"Retrying join ({attempt}/{maxAttempts})...");
-                    Debug.LogWarning($"[FusionLauncher] Transient launch exception, retrying in {delayMs}ms: {ex.Message}");
-                    await SafeShutdownRunner();
-                    await Task.Delay(delayMs);
+                    gameObject.transform.SetParent(null);
                 }
+                DontDestroyOnLoad(gameObject);
+
+                int maxAttempts = mode == GameMode.Client ? MaxClientJoinAttempts : 1;
+
+                for (int attempt = 1; attempt <= maxAttempts; attempt++)
+                {
+                    IsRetrying = attempt > 1;
+                    await EnsureRunnerReady(mode);
+
+                    if (this == null) return;
+
+                    try
+                    {
+                        var args = new StartGameArgs()
+                        {
+                            GameMode = mode,
+                            SessionName = normalizedRoom,
+                            SceneManager = sceneLoader,
+                            PlayerCount = 6,  // Max 6 players (SUMAK design: 2-6 players)
+                            ConnectionToken = FusionNetworkService.BuildConnectionToken(
+                                PlayerPrefs.GetString("Nick", string.Empty),
+                                PlayerPrefs.GetString("RoomPassword", string.Empty))
+                        };
+
+                        Debug.Log($"[FusionLauncher] Attempt {attempt}/{maxAttempts} — Room: '{normalizedRoom}', Mode: {mode}");
+
+                        // We set a FixedRegion in PhotonAppSettings to 'us' to prevent room segmentation.
+                        // If you still see GameNotFound, ensure all clients are using the same AppVersion.
+
+                        StartGameResult result = await _runner.StartGame(args);
+
+                        if (this == null) return;
+
+                        if (result.Ok)
+                        {
+                            IsRetrying = false;
+                            SetConnectionStatus(ConnectionStatus.Connected, "Connected.");
+                            Debug.Log($"[FusionLauncher] Connected to room '{normalizedRoom}' as {mode} (attempt {attempt}/{maxAttempts}).");
+                            return;
+                        }
+
+                        string reason = string.IsNullOrWhiteSpace(result.ErrorMessage)
+                            ? result.ShutdownReason.ToString()
+                            : result.ErrorMessage;
+
+                        bool shouldRetry = ShouldRetryJoin(mode, reason, attempt, maxAttempts);
+                        if (!shouldRetry)
+                        {
+                            IsRetrying = false;
+                            SetConnectionStatus(ConnectionStatus.Failed, reason);
+                            Debug.LogError($"[FusionLauncher] StartGame failed for room '{normalizedRoom}'. Reason: {reason}");
+                            await SafeShutdownRunner();
+                            return;
+                        }
+
+                        int delayMs = GetRetryDelayMs(attempt);
+                        SetConnectionStatus(ConnectionStatus.Connecting, $"Retrying join ({attempt}/{maxAttempts})...");
+                        Debug.LogWarning($"[FusionLauncher] Join retry scheduled in {delayMs}ms for room '{normalizedRoom}'. Reason: {reason}");
+
+                        IsRetrying = true; // Ensure flag is set for the shutdown
+                        await SafeShutdownRunner();
+                        if (this == null) return;
+
+                        await Task.Delay(delayMs);
+                        if (this == null) return;
+                    }
+                    catch (Exception ex)
+                    {
+                        if (this == null) return;
+
+                        bool shouldRetry = ShouldRetryJoin(mode, ex.Message, attempt, maxAttempts);
+                        if (!shouldRetry)
+                        {
+                            IsRetrying = false;
+                            SetConnectionStatus(ConnectionStatus.Failed, ex.Message);
+                            Debug.LogError($"[FusionLauncher] Exception during Launch: {ex.Message}");
+                            await SafeShutdownRunner();
+                            return;
+                        }
+
+                        int delayMs = GetRetryDelayMs(attempt);
+                        SetConnectionStatus(ConnectionStatus.Connecting, $"Retrying join ({attempt}/{maxAttempts})...");
+                        Debug.LogWarning($"[FusionLauncher] Transient launch exception, retrying in {delayMs}ms: {ex.Message}");
+
+                        IsRetrying = true;
+                        await SafeShutdownRunner();
+                        if (this == null) return;
+
+                        await Task.Delay(delayMs);
+                        if (this == null) return;
+                    }
+                }
+
+                IsRetrying = false;
+                SetConnectionStatus(ConnectionStatus.Failed, "Join failed after retries.");
             }
-
-            SetConnectionStatus(ConnectionStatus.Failed, "Join failed after retries.");
+            finally
+            {
+                _isLaunching = false;
+                IsRetrying = false;
+            }
         }
 
         public void SetConnectionStatus(ConnectionStatus status, string message)
@@ -131,30 +176,38 @@ namespace Networking.Services
             {
                 Debug.LogWarning($"[FusionLauncher] Shutdown error: {shutdownEx.Message}");
             }
-            finally
-            {
-                if (_runner != null)
-                {
-                    Destroy(_runner);
-                }
-                _runner = null;
 
-                await Task.Yield();
-            }
+            // Destroy component but ensure gameObject is still valid for next AddComponent
+            try { Destroy(_runner); } catch { }
+            _runner = null;
+
+            // Grace frame for Unity to process the Destroy before AddComponent reuses the slot
+            await Task.Yield();
         }
 
         private async Task EnsureRunnerReady(GameMode mode)
         {
+            // Check if this component was destroyed during connection retry delay
+            if (this == null)
+            {
+                Debug.LogWarning("[FusionLauncher] FusionLauncher component was destroyed during connection attempt.");
+                return;
+            }
+
             if (_runner != null)
             {
                 await SafeShutdownRunner();
             }
 
-            _runner = gameObject.AddComponent<NetworkRunner>();
-            _runner.name = name;
+            if (this == null) return;
+
+            // Use this.gameObject explicitly to avoid ambiguity with destroyed runner
+            _runner = this.gameObject.AddComponent<NetworkRunner>();
+            _runner.name = this.name;
             _runner.ProvideInput = mode != GameMode.Server;
 
             await Task.Yield();
+            if (this == null) return;
 
             var fusionService = FindFirstObjectByType<FusionNetworkService>();
             if (fusionService != null)

@@ -8,7 +8,7 @@ PlayerSettings:
   AndroidProfiler: 0
   AndroidFilterTouchesWhenObscured: 0
   AndroidEnableSustainedPerformanceMode: 0
-  defaultScreenOrientation: 4
+  defaultScreenOrientation: 0
   targetDevice: 2
   useOnDemandResources: 0
   accelerometerFrequency: 60
@@ -941,11 +941,11 @@ PlayerSettings:
   captureStartupLogs: {}
   activeInputHandler: 1
   windowsGamepadBackendHint: 0
-  cloudProjectId: 157f9766-6e81-412c-bd5d-49893994e4f4
+  cloudProjectId: 9d735489-8a00-43b3-8f64-4edf7e3e00e8
   framebufferDepthMemorylessMode: 0
   qualitySettingsNames: []
-  projectName: Sumak_ReDo
-  organizationId: sebastianrn646
+  projectName: Sumapp_Final
+  organizationId: neoswamp
   cloudEnabled: 0
   legacyClampBlendShapeWeights: 0
   hmiLoadingImage: {fileID: 0}

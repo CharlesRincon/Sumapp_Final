@@ -661,13 +661,58 @@ namespace Networking.UI
                 _hideNotificationCoroutine = null;
             }
 
+            // Perform a quick cleanup of any remaining tweens without snapping if possible
+            // But for safety and consistency with uGUI activation, we still reset.
             ResetTurnNotificationPrimaryImage();
             ResetTurnNotificationSecondaryImage();
             ResetTurnNotificationFadeImage();
             ResetTurnNotificationSpinningFadeImage();
 
-            if (notificationPanel != null)
+            if (notificationPanel != null && notificationPanel.activeSelf)
+            {
+                // We don't snap to inactive if we're in the middle of something unless necessary.
+                // But for now, we just ensure the snap is at least predictable.
                 notificationPanel.SetActive(false);
+            }
+        }
+
+        public bool IsNotificationActive => _hideNotificationCoroutine != null;
+
+        public void ShowAnotherPlayerTurnNotification(GameObject panel, TMP_Text textComponent, Image imageComponent, string playerName)
+        {
+            if (panel == null) return;
+
+            if (textComponent != null) textComponent.text = $"¡Es turno de {playerName}!";
+
+            panel.SetActive(true);
+
+            // Floating animation for text and image
+            if (textComponent != null)
+            {
+                LeanTween.cancel(textComponent.gameObject);
+                textComponent.transform.localPosition = new Vector3(textComponent.transform.localPosition.x, 0, textComponent.transform.localPosition.z);
+                LeanTween.moveLocalY(textComponent.gameObject, 15f, 1.2f).setEase(LeanTweenType.easeInOutSine).setLoopPingPong();
+            }
+
+            if (imageComponent != null)
+            {
+                LeanTween.cancel(imageComponent.gameObject);
+                imageComponent.transform.localPosition = new Vector3(imageComponent.transform.localPosition.x, 0, imageComponent.transform.localPosition.z);
+                LeanTween.moveLocalY(imageComponent.gameObject, 10f, 1.5f).setEase(LeanTweenType.easeInOutSine).setLoopPingPong();
+            }
+        }
+
+        public void HideAnotherPlayerTurnNotification(GameObject panel)
+        {
+            if (panel == null) return;
+            panel.SetActive(false);
+
+            // Cancel tweens when hiding
+            var texts = panel.GetComponentsInChildren<TMP_Text>();
+            foreach (var t in texts) LeanTween.cancel(t.gameObject);
+
+            var images = panel.GetComponentsInChildren<Image>();
+            foreach (var i in images) LeanTween.cancel(i.gameObject);
         }
 
         private IEnumerator HideNotificationAfterDelay(GameObject notificationPanel, float duration)

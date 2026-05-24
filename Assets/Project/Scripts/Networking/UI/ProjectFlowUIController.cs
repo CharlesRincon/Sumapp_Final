@@ -23,7 +23,7 @@ namespace Networking.UI
         [SerializeField] private TextMeshProUGUI _cardInfoTitleText;
         [SerializeField] private TextMeshProUGUI _cardInfoLoreText;
         [SerializeField] private TextMeshProUGUI _cardInfoEffectText;
-        [SerializeField] private float _cardInfoAutoHideSeconds = 5.0f;
+        [SerializeField] private float _cardInfoAutoHideSeconds = 4.0f;
 
         public bool IsProjectFlowVisible { get; private set; }
         private string _lastShownCardTitle;
@@ -98,9 +98,12 @@ namespace Networking.UI
             bool projectFlowActive = isAwaitingProjectScan || isAwaitingProjectDecision;
             bool hasCardInfo = localData != null && !string.IsNullOrWhiteSpace(localData.PendingCardTitle.ToString());
 
+            var lobbyCanvas = FindFirstObjectByType<LobbyCanvas>();
+            bool isNotificationActive = (lobbyCanvas != null && lobbyCanvas.IsProcessingNotification);
+
             IsProjectFlowVisible = projectFlowActive || isAwaitingCardScan || hasCardInfo;
 
-            if (isAwaitingProjectDecision && isVuforiaOpen
+            if (isAwaitingProjectDecision && isVuforiaOpen && !isNotificationActive
                 && _projectDecisionPanel != null && !_projectDecisionPanel.activeSelf)
             {
                 _projectDecisionPanel.SetActive(true);

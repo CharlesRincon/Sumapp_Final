@@ -61,7 +61,10 @@ namespace Networking.UI
             }
 
             // Wait until the turn sub-panel has been shown and then dismissed
-            bool subPanelActive = turnNotificationPanel != null && turnNotificationPanel.activeSelf;
+            var lobbyCanvas = FindFirstObjectByType<LobbyCanvas>();
+            bool subPanelActive = (turnNotificationPanel != null && turnNotificationPanel.activeSelf)
+                || (lobbyCanvas != null && lobbyCanvas.IsProcessingNotification);
+            
             if (subPanelActive)
             {
                 _seenSubPanelActive = true;

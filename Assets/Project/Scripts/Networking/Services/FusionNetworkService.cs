@@ -137,6 +137,13 @@ namespace Networking.Services
             {
                 LocalRunner = null;
             }
+
+            if (FusionLauncher.IsRetrying)
+            {
+                Debug.Log("[FusionNetworkService] Shutdown event suppressed (Launcher is retrying).");
+                return;
+            }
+
             OnShutdownEvent?.Raise(runner: runner);
         }
 

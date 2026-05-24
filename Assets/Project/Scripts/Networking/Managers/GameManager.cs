@@ -113,6 +113,11 @@ namespace Networking.Managers
         [SerializeField] private int _triviaMoneyRewardMin = 1;
         [SerializeField] private int _triviaMoneyRewardMax = 3;
 
+        [Header("Animation & Timing Config")]
+        [SerializeField] private float _turnAdvancementDelaySeconds = 4.5f;
+        [SerializeField] private float _diceJumpDurationPerUnit = 0.45f;
+        [SerializeField] private float _diceJumpBufferSeconds = 4.5f;
+
         private Networking.Services.BasinService _basinService;
         private Networking.Services.TileService _tileService;
 
@@ -157,6 +162,10 @@ namespace Networking.Managers
             if (Instance == null)
             {
                 Instance = this;
+                Application.targetFrameRate = 60;
+                Application.runInBackground = true;
+                QualitySettings.vSyncCount = 0;
+                Debug.Log($"[GameManager] Target frame rate set to 60. VSync count set to 0. Run in background enabled.");
             }
             else if (Instance != this)
             {
@@ -425,7 +434,8 @@ _roundWaterGainFlatPenalty    = 0; _roundWaterGainPercentPenalty  = 0;
             bool shouldAdvanceTurn = ResolveTileAndApplyEffects(playerData, runner);
             if (shouldAdvanceTurn)
             {
-                AdvanceTurn(runner);
+                float delay = (effectiveRoll * _diceJumpDurationPerUnit) + _diceJumpBufferSeconds;
+                AdvanceTurn(runner, delay);
             }
         }
 
@@ -437,7 +447,7 @@ _roundWaterGainFlatPenalty    = 0; _roundWaterGainPercentPenalty  = 0;
             bool shouldAdvanceTurn = ResolveTileAndApplyEffects(playerData, runner, fromTeleport: true);
             if (shouldAdvanceTurn)
             {
-                AdvanceTurn(runner);
+                AdvanceTurn(runner, _turnAdvancementDelaySeconds);
             }
         }
 
@@ -512,6 +522,16 @@ _roundWaterGainFlatPenalty    = 0; _roundWaterGainPercentPenalty  = 0;
                 }
             }
         }
+        private void OnApplicationPause(bool pauseStatus)
+        {
+            Debug.Log($"[GameManager] Application pause status: {pauseStatus}. Peer mode: {Networking.Services.FusionNetworkService.LocalRunner?.Config?.PeerMode}");
+        }
+
+        private void OnApplicationFocus(bool hasFocus)
+        {
+            Debug.Log($"[GameManager] Application focus status: {hasFocus}");
+        }
+
         public void InitializePreRoundPlayerState(NetworkRunner runner)
         {
             if (runner == null || !runner.IsServer)
@@ -548,12 +568,13 @@ _roundWaterGainFlatPenalty    = 0; _roundWaterGainPercentPenalty  = 0;
             }
         }
 
-        private void AdvanceTurn(NetworkRunner runner)
+        private void AdvanceTurn(NetworkRunner runner, float delay = 0f)
         {
+            // Clear current active player status immediately so no one is "Active" during the delay
             foreach (var player in runner.ActivePlayers)
             {
                 var data = GetPlayerData(player, runner);
-                if (data != null)
+                if (data != null && data.IsActiveTurn)
                 {
                     data.IsActiveTurn = false;
                     data.HasRolledThisTurn = false;
@@ -562,10 +583,29 @@ _roundWaterGainFlatPenalty    = 0; _roundWaterGainPercentPenalty  = 0;
                 }
             }
 
+            if (delay > 0f)
+            {
+                StartCoroutine(AdvanceTurnCoroutine(runner, delay));
+            }
+            else
+            {
+                ExecuteAdvanceTurn(runner);
+            }
+        }
+
+        private IEnumerator AdvanceTurnCoroutine(NetworkRunner runner, float delay)
+        {
+            yield return new WaitForSeconds(delay);
+            ExecuteAdvanceTurn(runner);
+        }
+
+        private void ExecuteAdvanceTurn(NetworkRunner runner)
+        {
             _activeTurnIndex++;
             if (_activeTurnIndex >= _turnOrder.Count)
             {
-                EndRound(runner);
+                // Delay the transition to minigame to allow the last player's animations to finish
+                StartCoroutine(EndRoundDelayedCoroutine(runner, _turnAdvancementDelaySeconds));
                 return;
             }
 
@@ -595,6 +635,12 @@ _roundWaterGainFlatPenalty    = 0; _roundWaterGainPercentPenalty  = 0;
 
             State = GameState.PlayerTurn;
             Networking.Events.NetworkEventDefinitions.Instance?.OnTurnStartedEvent?.Raise(activePlayer, runner);
+        }
+
+        private IEnumerator EndRoundDelayedCoroutine(NetworkRunner runner, float delay)
+        {
+            yield return new WaitForSeconds(delay);
+            EndRound(runner);
         }
 
         private bool ResolveTileAndApplyEffects(Networking.Models.PlayerSessionData playerData, NetworkRunner runner, bool fromTeleport = false)
@@ -763,7 +809,7 @@ _roundWaterGainFlatPenalty    = 0; _roundWaterGainPercentPenalty  = 0;
                 Debug.Log($"[GameManager] Trivia incorrect — no reward for player {player.PlayerId}.");
             }
 
-            AdvanceTurn(runner);
+            AdvanceTurn(runner, _turnAdvancementDelaySeconds);
         }
 
         private bool BeginDrawCardTileFlow(Networking.Models.PlayerSessionData playerData)
@@ -1076,7 +1122,7 @@ _roundWaterGainFlatPenalty    = 0; _roundWaterGainPercentPenalty  = 0;
 
             if (!playerData.IsPendingTeleportTileResolution)
             {
-                AdvanceTurn(runner);
+                AdvanceTurn(runner, _turnAdvancementDelaySeconds);
             }
         }
 
@@ -1146,7 +1192,7 @@ _roundWaterGainFlatPenalty    = 0; _roundWaterGainPercentPenalty  = 0;
             var scanningPlayerData = GetPlayerData(_pendingDecisionScanningPlayer, runner);
             if (scanningPlayerData == null || !scanningPlayerData.IsPendingTeleportTileResolution)
             {
-                AdvanceTurn(runner);
+                AdvanceTurn(runner, _turnAdvancementDelaySeconds);
             }
         }
 
@@ -1161,7 +1207,7 @@ _roundWaterGainFlatPenalty    = 0; _roundWaterGainPercentPenalty  = 0;
             playerData.IsAwaitingCardScan = false;
             ClearPendingProjectState(playerData);
             ClearPendingCardDisplay(playerData);
-            AdvanceTurn(runner);
+            AdvanceTurn(runner, _turnAdvancementDelaySeconds);
         }
 
         private void ClearPendingProjectState(Networking.Models.PlayerSessionData data)
@@ -2134,7 +2180,7 @@ _roundWaterGainFlatPenalty    = 0; _roundWaterGainPercentPenalty  = 0;
             playerData.MoneyAmount = Mathf.Max(0, playerData.MoneyAmount - playerData.PendingProjectPrice);
             ClearPendingProjectState(playerData);
             State = GameState.BasinCheck;
-            AdvanceTurn(runner);
+            AdvanceTurn(runner, _turnAdvancementDelaySeconds);
         }
 
         public void HandleDeclinePendingProject(PlayerRef player, NetworkRunner runner)
@@ -2152,7 +2198,7 @@ _roundWaterGainFlatPenalty    = 0; _roundWaterGainPercentPenalty  = 0;
 
             ClearPendingProjectState(playerData);
             State = GameState.BasinCheck;
-            AdvanceTurn(runner);
+            AdvanceTurn(runner, _turnAdvancementDelaySeconds);
         }
 
         public bool IsCharacterAvailable(int characterId, NetworkRunner runner)

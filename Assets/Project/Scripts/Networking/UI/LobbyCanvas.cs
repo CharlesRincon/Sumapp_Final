@@ -68,6 +68,13 @@ namespace Networking.UI
         [SerializeField] private TextMeshProUGUI _roomActionButtonText;
         [SerializeField] private TMP_InputField _nickname;
         [SerializeField] private TMP_InputField _room;
+        [Space]
+        [Header("Another Player Turn UI")]
+        [SerializeField] private GameObject _anotherPlayerTurnPanel;
+        [SerializeField] private TextMeshProUGUI _anotherPlayerTurnText;
+        [SerializeField] private Image _anotherPlayerTurnImage;
+        private PlayerRef _lastActivePlayerRef = PlayerRef.None;
+
         [SerializeField] private AnimationsLogic _animationsLogic;
         [SerializeField] private VictoryUIController _victoryUIController;
         [SerializeField] private MinigameReadyUIController _minigameReadyUIController;
@@ -224,6 +231,11 @@ namespace Networking.UI
         private void Start()
         {
             Debug.Log("[LobbyCanvas] Start() called.");
+
+            // Limit input fields to 10 characters
+            if (_nickname != null) _nickname.characterLimit = 10;
+            if (_room != null) _room.characterLimit = 10;
+
             EnsureMinigameReadyUIController();
             _minigameReadyUIController?.InitializeStatus();
 
@@ -249,8 +261,11 @@ namespace Networking.UI
 
         private bool _sessionRestored;
         private bool _diceRolling;
+        private Queue<string> _notificationQueue = new Queue<string>();
+        private bool _isProcessingNotification;
 
         public bool IsTurnNotificationPanelActive => _turnNotificationPanel != null && _turnNotificationPanel.activeSelf;
+        public bool IsProcessingNotification => _isProcessingNotification || _notificationQueue.Count > 0;
 
         /// <summary>
         /// Returns true if it is currently the local player's turn.
@@ -444,6 +459,38 @@ namespace Networking.UI
             bool isMyTurn = localData != null && localData.IsActiveTurn;
             bool hasRolledThisTurn = localData != null && localData.HasRolledThisTurn;
 
+            // Find current active player
+            PlayerRef currentActivePlayer = PlayerRef.None;
+            foreach (var player in runner.ActivePlayers)
+            {
+                var data = gm.GetPlayerData(player, runner);
+                if (data != null && data.IsActiveTurn)
+                {
+                    currentActivePlayer = player;
+                    break;
+                }
+            }
+
+            // Handle AnotherPlayerTurnPanel
+            if (currentActivePlayer != _lastActivePlayerRef)
+            {
+                _lastActivePlayerRef = currentActivePlayer;
+                
+                if (currentActivePlayer != PlayerRef.None && currentActivePlayer != runner.LocalPlayer)
+                {
+                    var activeData = gm.GetPlayerData(currentActivePlayer, runner);
+                    if (activeData != null)
+                    {
+                        string playerName = activeData.Nick.ToString();
+                        _animationsLogic?.ShowAnotherPlayerTurnNotification(_anotherPlayerTurnPanel, _anotherPlayerTurnText, _anotherPlayerTurnImage, playerName);
+                    }
+                }
+                else
+                {
+                    _animationsLogic?.HideAnotherPlayerTurnNotification(_anotherPlayerTurnPanel);
+                }
+            }
+
             // Button: enabled only when it's our turn and we haven't started rolling
             if (_rollDiceButton != null)
                 _rollDiceButton.interactable = isMyTurn && !hasRolledThisTurn && !_diceRolling;
@@ -475,8 +522,8 @@ namespace Networking.UI
                 }
                 else if (!isMyTurn)
                 {
-                    if (_shownTurnNotificationThisTurn)
-                        HideTurnNotification();
+                    // Allow notifications (like landing on a tile) to finish naturally
+                    // instead of cutting them off abruptly when the networked turn state changes.
                     _shownTurnNotificationThisTurn = false;
                 }
             }
@@ -664,14 +711,39 @@ namespace Networking.UI
 
         private void ShowTurnNotification(string message)
         {
-            EnsureAnimationsLogic();
-            _animationsLogic?.ShowTurnNotification(_turnNotificationPanel, _turnNotificationText, message);
+            if (string.IsNullOrEmpty(message)) return;
+
+            _notificationQueue.Enqueue(message);
+            if (!_isProcessingNotification)
+            {
+                StartCoroutine(ProcessNotificationQueue());
+            }
+        }
+
+        private IEnumerator ProcessNotificationQueue()
+        {
+            _isProcessingNotification = true;
+
+            while (_notificationQueue.Count > 0)
+            {
+                string message = _notificationQueue.Dequeue();
+                
+                EnsureAnimationsLogic();
+                _animationsLogic?.ShowTurnNotification(_turnNotificationPanel, _turnNotificationText, message);
+
+                // Wait for the notification duration + exit time buffer (approx 3.5s)
+                yield return new WaitForSeconds(3.5f);
+            }
+
+            _isProcessingNotification = false;
         }
 
         private void HideTurnNotification()
         {
             EnsureAnimationsLogic();
             _animationsLogic?.HideTurnNotification(_turnNotificationPanel);
+            _notificationQueue.Clear();
+            _isProcessingNotification = false;
         }
 
         private void RefreshActiveProjectsUI(NetworkRunner runner)
@@ -918,6 +990,18 @@ namespace Networking.UI
         {
             if (_isTransitioningFromRoomInputs)
             {
+                return;
+            }
+
+            if (_nickname == null || string.IsNullOrWhiteSpace(_nickname.text))
+            {
+                Debug.LogWarning("[LobbyCanvas] Nickname cannot be empty.");
+                return;
+            }
+
+            if (_room == null || string.IsNullOrWhiteSpace(_room.text))
+            {
+                Debug.LogWarning("[LobbyCanvas] Room name cannot be empty.");
                 return;
             }
 
@@ -1436,6 +1520,13 @@ namespace Networking.UI
             Debug.Log("[LobbyCanvas] Canvas reset");
             HideOpeningPanelImmediate();
 
+            EnsureAnimationsLogic();
+            if (_animationsLogic?.LoadingPanel != null && _animationsLogic.LoadingPanel.activeSelf)
+            {
+                _animationsLogic.CancelLoadingPanelAnimation();
+                _animationsLogic.LoadingPanel.SetActive(false);
+            }
+
             if (_initPanel != null)
             {
                 _initPanel.SetActive(true);
@@ -1469,6 +1560,8 @@ namespace Networking.UI
             _victoryUIController?.ResetVictoryState();
             _shownTurnNotificationThisTurn = false;
             HideTurnNotification();
+            _animationsLogic?.HideAnotherPlayerTurnNotification(_anotherPlayerTurnPanel);
+            _lastActivePlayerRef = PlayerRef.None;
             _minigameReadyUIController?.InitializeStatus();
             InitializeGameLobbyStatus();
             if (_vuforiaPanel != null)
@@ -1491,7 +1584,10 @@ namespace Networking.UI
             {
                 _backgroundImage.SetActive(true);
             }
-            _startButton.gameObject.SetActive(runner.IsServer);
+            if (runner != null && _startButton != null)
+            {
+                _startButton.gameObject.SetActive(runner.IsServer);
+            }
             ShowInitPanel();
         }
 
@@ -1564,7 +1660,8 @@ namespace Networking.UI
         private void BeginLauncherFlow()
         {
             EnsureAnimationsLogic();
-            if (_gameMode == GameMode.Host && _animationsLogic?.LoadingPanel != null)
+            // Show loading panel for both Host and Client modes
+            if ((_gameMode == GameMode.Host || _gameMode == GameMode.Client) && _animationsLogic?.LoadingPanel != null)
             {
                 if (_initPanel != null)
                     _initPanel.SetActive(false);

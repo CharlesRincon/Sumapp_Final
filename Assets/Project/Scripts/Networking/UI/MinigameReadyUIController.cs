@@ -51,6 +51,7 @@ namespace Networking.UI
             if (runner != null)
             {
                 var localData = gameManager?.GetPlayerData(runner.LocalPlayer, runner);
+                var lobbyCanvas = FindFirstObjectByType<LobbyCanvas>();
                 bool showPanel = localData != null
                     && localData.IsInMinigameReadyPhase
                     && !localData.IsAwaitingProjectScan
@@ -59,7 +60,8 @@ namespace Networking.UI
                     && !localData.IsAwaitingTrivia
                     && !isVuforiaOpen
                     && !isDiceRolling
-                    && (turnNotificationPanel == null || !turnNotificationPanel.activeSelf);
+                    && (turnNotificationPanel == null || !turnNotificationPanel.activeSelf)
+                    && (lobbyCanvas == null || !lobbyCanvas.IsProcessingNotification);
 
                 if (_minigameReadyPanel.activeSelf != showPanel)
                     _minigameReadyPanel.SetActive(showPanel);

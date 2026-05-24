@@ -11,7 +11,7 @@ namespace Networking.Services
 {
     public class FusionLauncher : MonoBehaviour
     {
-        private const int MaxClientJoinAttempts = 4;
+        private const int MaxClientJoinAttempts = 8;
 
         private NetworkRunner _runner;
         private ConnectionStatus _status;
@@ -59,6 +59,8 @@ namespace Networking.Services
                             PlayerPrefs.GetString("Nick", string.Empty),
                             PlayerPrefs.GetString("RoomPassword", string.Empty))
                     };
+
+                    Debug.Log($"[FusionLauncher] Attempt {attempt}/{maxAttempts} — Room: '{normalizedRoom}', Mode: {mode}");
 
                     StartGameResult result = await _runner.StartGame(args);
 
@@ -119,10 +121,7 @@ namespace Networking.Services
 
         private async Task SafeShutdownRunner()
         {
-            if (_runner == null)
-            {
-                return;
-            }
+            if (_runner == null) return;
 
             try
             {
@@ -130,29 +129,38 @@ namespace Networking.Services
             }
             catch (Exception shutdownEx)
             {
-                Debug.LogWarning($"[FusionLauncher] Runner shutdown failed after error: {shutdownEx.Message}");
+                Debug.LogWarning($"[FusionLauncher] Shutdown error: {shutdownEx.Message}");
             }
+            finally
+            {
+                if (_runner != null)
+                {
+                    Destroy(_runner);
+                }
+                _runner = null;
 
-            _runner = null;
+                await Task.Yield();
+            }
         }
 
         private async Task EnsureRunnerReady(GameMode mode)
         {
-            if (_runner == null)
+            if (_runner != null)
             {
-                _runner = gameObject.AddComponent<NetworkRunner>();
+                await SafeShutdownRunner();
             }
 
+            _runner = gameObject.AddComponent<NetworkRunner>();
             _runner.name = name;
             _runner.ProvideInput = mode != GameMode.Server;
+
+            await Task.Yield();
 
             var fusionService = FindFirstObjectByType<FusionNetworkService>();
             if (fusionService != null)
             {
                 _runner.AddCallbacks(fusionService);
             }
-
-            await Task.CompletedTask;
         }
 
         private static bool ShouldRetryJoin(GameMode mode, string reason, int attempt, int maxAttempts)
@@ -175,9 +183,9 @@ namespace Networking.Services
         private static int GetRetryDelayMs(int attempt)
         {
             // 250, 500, 1000... short backoff to absorb host room registration delay.
-            int baseDelay = 250;
-            int shift = Mathf.Clamp(attempt - 1, 0, 3);
-            return baseDelay * (1 << shift);
+            int baseDelay = 500;
+            int shift = Mathf.Clamp(attempt - 1, 0, 2);
+            return Mathf.Min(baseDelay * (1 << shift), 3000);
         }
     }
 }

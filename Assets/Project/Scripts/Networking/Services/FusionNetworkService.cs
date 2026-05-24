@@ -140,7 +140,10 @@ namespace Networking.Services
             OnShutdownEvent?.Raise(runner: runner);
         }
 
-        void INetworkRunnerCallbacks.OnConnectedToServer(NetworkRunner runner) { }
+        void INetworkRunnerCallbacks.OnConnectedToServer(NetworkRunner runner)
+        {
+            Debug.Log($"[FusionNetworkService] Connected. Region: {runner.SessionInfo?.Region}");
+        }
 
         void INetworkRunnerCallbacks.OnDisconnectedFromServer(NetworkRunner runner, NetDisconnectReason reason)
         {

@@ -45,6 +45,10 @@ namespace Networking.Managers
             }
 
             _instance = this;
+            if (transform.parent != null)
+            {
+                transform.SetParent(null);
+            }
             DontDestroyOnLoad(gameObject);
 
             InitializeCharacterMap();

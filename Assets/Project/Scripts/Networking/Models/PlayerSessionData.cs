@@ -128,6 +128,12 @@ namespace Networking.Models
         public int CurrentRound { get; set; }
 
         [Networked]
+        public WeatherTag ActiveWeatherTag { get; set; }
+
+        [Networked]
+        public int WeatherVersion { get; set; }
+
+        [Networked]
         public bool IsInMinigameReadyPhase { get; set; }
 
         [Networked]
@@ -281,6 +287,16 @@ namespace Networking.Models
             Debug.Log($"[PlayerSessionData.RPC_IncrementMinigameClickCount] Host executing for player {Object.InputAuthority.PlayerId}. Before: {MinigameClickCount}");
             MinigameClickCount++;
             Debug.Log($"[PlayerSessionData.RPC_IncrementMinigameClickCount] After: {MinigameClickCount}");
+        }
+
+        /// <summary>
+        /// RPC to add variable points to the minigame click count.
+        /// </summary>
+        [Rpc(sources: RpcSources.InputAuthority, targets: RpcTargets.StateAuthority, HostMode = RpcHostMode.SourceIsHostPlayer)]
+        public void RPC_AddMinigamePoints(int points)
+        {
+            MinigameClickCount += points;
+            Debug.Log($"[PlayerSessionData.RPC_AddMinigamePoints] Player {Object.InputAuthority.PlayerId} added {points} points. New Total: {MinigameClickCount}");
         }
 
         [Rpc(sources: RpcSources.InputAuthority, targets: RpcTargets.StateAuthority, HostMode = RpcHostMode.SourceIsHostPlayer)]

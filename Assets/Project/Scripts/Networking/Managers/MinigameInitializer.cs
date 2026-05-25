@@ -10,7 +10,7 @@ namespace Networking.Managers
     public class MinigameInitializer : MonoBehaviour
     {
         [SerializeField]
-        private NetworkPrefabRef _minigameManagerPrefab;
+        private GameObject _minigameManagerPrefab;
 
         private bool _hasSpawned = false;
 
@@ -45,8 +45,15 @@ namespace Networking.Managers
             }
 
             Debug.Log("[MinigameInitializer] Host spawning MinigameManager prefab...");
+            var networkObject = _minigameManagerPrefab.GetComponent<NetworkObject>();
+            if (networkObject == null)
+            {
+                Debug.LogError("[MinigameInitializer] MinigameManager prefab missing NetworkObject component!");
+                return;
+            }
+
             var spawnedObj = runner.Spawn(
-                _minigameManagerPrefab,
+                networkObject,
                 inputAuthority: runner.LocalPlayer
             );
 

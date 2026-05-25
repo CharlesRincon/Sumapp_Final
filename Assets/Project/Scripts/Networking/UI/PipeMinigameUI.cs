@@ -68,7 +68,8 @@ namespace Networking.UI
             }
 
             // Spawn initial holes
-            for (int i = 0; i < 3; i++)
+            int initialHoles = _runner != null ? Mathf.Max(3, _runner.ActivePlayers.Count() * 2) : 5;
+            for (int i = 0; i < initialHoles; i++)
             {
                 SpawnHole();
             }
@@ -260,7 +261,8 @@ namespace Networking.UI
                 var text = entryGO.GetComponentInChildren<TextMeshProUGUI>();
                 if (text != null)
                 {
-                    text.text = $"#{i + 1} {entry.name}: {entry.count} repairs";
+                    text.text = $"#{i + 1} {entry.name}: {entry.count} puntos";
+                    text.alignment = TextAlignmentOptions.Center;
                 }
             }
         }

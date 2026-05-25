@@ -1,0 +1,38 @@
+{
+    "asset": "904e12498f1acb3409235b374f53a0e5",
+    "fileName": "019e5dd8-1e44-7cf6-b6e3-248f109aa0d8.png",
+    "prompt": "A stylized, vibrant, casual cartoon background for a rain minigame. Soft blue and teal sky with subtle vertical rain streaks and light clouds. Clean, simple, and artistic, matching the style of a board game interface. Portrait orientation.",
+    "negativePrompt": "",
+    "model": "flux-2-dev",
+    "modelName": "Flux 2 (Dev)",
+    "customSeed": -1,
+    "w3CTraceId": "",
+    "feedback": 0,
+    "refinementMode": "Generation",
+    "pixelateTargetSize": 0,
+    "pixelateKeepImageSize": false,
+    "pixelatePixelBlockSize": 0,
+    "pixelatePixelGridSize": 0,
+    "pixelateMode": 0,
+    "pixelateOutlineThickness": 0,
+    "doodles": {
+        "m_Items": [
+            {
+                "doodleReferenceType": 7,
+                "doodle": [],
+                "label": "Image",
+                "strength": 0.25,
+                "invertStrength": false,
+                "assetReferenceGuid": "62a3c91c77e21b94684df409c31e6aa6",
+                "unlabeledIndex": -1
+            }
+        ]
+    },
+    "upscaleFactor": 0,
+    "dimensions": {
+        "width": 1152,
+        "height": 2048
+    },
+    "spriteSheet": false,
+    "duration": 0.0
+}

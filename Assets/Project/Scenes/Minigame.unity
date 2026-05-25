@@ -1497,8 +1497,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 76bc18e60aa99ef4e9984f7463ea3b38, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Networking.Managers.MinigameInitializer
-  _minigameManagerPrefab:
-    RawGuidValue: 6dbd64d40ce9cad48920694c427e0a99
+  _minigameManagerPrefab: {fileID: 6340125794302986895, guid: 6dbd64d40ce9cad48920694c427e0a99, type: 3}
 --- !u!4 &1862944185
 Transform:
   m_ObjectHideFlags: 0

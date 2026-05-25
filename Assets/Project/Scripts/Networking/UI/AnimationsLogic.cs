@@ -686,19 +686,11 @@ namespace Networking.UI
 
             panel.SetActive(true);
 
-            // Floating animation for text and image
-            if (textComponent != null)
+            // Floating animation for the entire panel
+            if (!LeanTween.isTweening(panel))
             {
-                LeanTween.cancel(textComponent.gameObject);
-                textComponent.transform.localPosition = new Vector3(textComponent.transform.localPosition.x, 0, textComponent.transform.localPosition.z);
-                LeanTween.moveLocalY(textComponent.gameObject, 15f, 1.2f).setEase(LeanTweenType.easeInOutSine).setLoopPingPong();
-            }
-
-            if (imageComponent != null)
-            {
-                LeanTween.cancel(imageComponent.gameObject);
-                imageComponent.transform.localPosition = new Vector3(imageComponent.transform.localPosition.x, 0, imageComponent.transform.localPosition.z);
-                LeanTween.moveLocalY(imageComponent.gameObject, 10f, 1.5f).setEase(LeanTweenType.easeInOutSine).setLoopPingPong();
+                float startY = panel.transform.localPosition.y;
+                LeanTween.moveLocalY(panel, startY + 15f, 1.2f).setEase(LeanTweenType.easeInOutSine).setLoopPingPong();
             }
         }
 
@@ -708,6 +700,7 @@ namespace Networking.UI
             panel.SetActive(false);
 
             // Cancel tweens when hiding
+            LeanTween.cancel(panel);
             var texts = panel.GetComponentsInChildren<TMP_Text>();
             foreach (var t in texts) LeanTween.cancel(t.gameObject);
 

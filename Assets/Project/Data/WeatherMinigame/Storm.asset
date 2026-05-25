@@ -1,0 +1,18 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 258876cbbe8f5764aab666ddcab1d3ed, type: 3}
+  m_Name: Storm
+  m_EditorClassIdentifier: Assembly-CSharp::Networking.Models.WeatherCardDefinition
+  Illustration: {fileID: 21300000, guid: 38acdd9638ed4064ea10a5a15eb44fe5, type: 3}
+  Description: "Tormenta el\xE9ctrica tropical azota la ciudad con fuertes r\xE1fagas
+    de viento."
+  IsElNino: 0

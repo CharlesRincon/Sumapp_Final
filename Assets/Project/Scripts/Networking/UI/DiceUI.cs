@@ -63,8 +63,10 @@ namespace Networking.UI
 
             // Pick the final roll locally so we can show it immediately
             int finalRoll = Random.Range(1, 11);
+            finalRoll = Networking.Services.DiceDebugService.GetRoll(finalRoll);
+            
             _lobbyCanvas.DisplayDiceResult(finalRoll);
-            Debug.Log($"[DiceUI] Local final roll determined: {finalRoll}");
+Debug.Log($"[DiceUI] Local final roll determined: {finalRoll}");
 
             // Request validated roll from host using our local value
             var localData = Networking.Managers.GameManager.Instance?.GetPlayerData(runner.LocalPlayer, runner);

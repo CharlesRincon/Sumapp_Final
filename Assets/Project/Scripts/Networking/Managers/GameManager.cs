@@ -61,7 +61,36 @@ namespace Networking.Managers
         private bool _weatherApplyBasinDeltaAtRoundEnd;
         private int _weatherBasinFlatPerRound;
         private WeatherTag _activeWeatherTag = WeatherTag.None;
-        private int  _weatherProjectMoneyFlatBonusPerRound;
+        private int _activeWeatherVersion = 0;
+
+        public WeatherTag ActiveWeatherTag
+        {
+            get
+            {
+                var runner = Networking.Services.FusionNetworkService.LocalRunner;
+                if (runner != null && !runner.IsServer)
+                {
+                    var localData = GetPlayerData(runner.LocalPlayer, runner);
+                    if (localData != null) return localData.ActiveWeatherTag;
+                }
+                return _activeWeatherTag;
+            }
+        }
+
+        public int ActiveWeatherVersion
+        {
+            get
+            {
+                var runner = Networking.Services.FusionNetworkService.LocalRunner;
+                if (runner != null && !runner.IsServer)
+                {
+                    var localData = GetPlayerData(runner.LocalPlayer, runner);
+                    if (localData != null) return localData.WeatherVersion;
+                }
+                return _activeWeatherVersion;
+            }
+        }
+private int  _weatherProjectMoneyFlatBonusPerRound;
         private int  _weatherProjectWaterFlatBonusPerRound;
         private bool _weatherDoubleBasinRecovery;
         private bool _weatherLockBasin;
@@ -268,8 +297,9 @@ _roundWaterGainFlatPenalty    = 0; _roundWaterGainPercentPenalty  = 0;
                 {
                     Debug.Log($"[GameManager] Weather (card {_activeWeatherCardId}) expired at round {_currentRound}.");
                     ClearActiveWeather();
+                    SyncWeatherToAllPlayers(runner);
                 }
-                else
+else
                 {
                     _roundProjectMoneyPercentPenalty += _weatherProjectMoneyPercentPenalty;
                     _roundProjectMoneyFlatBonus      += _weatherProjectMoneyFlatBonusPerRound;
@@ -507,8 +537,9 @@ _roundWaterGainFlatPenalty    = 0; _roundWaterGainPercentPenalty  = 0;
                 data.IsInMinigameReadyPhase = false;
                 data.IsReadyForMinigame = false;
                 data.IsAwaitingDecisionVote = false;
+                data.ActiveWeatherTag = _activeWeatherTag;
                 data.PendingDecisionVote = 0;
-                data.IsPendingTeleportTileResolution = false;
+data.IsPendingTeleportTileResolution = false;
                 ClearPendingProjectState(data);
 
                 if (data.WaterAmount <= 0)
@@ -921,8 +952,9 @@ _roundWaterGainFlatPenalty    = 0; _roundWaterGainPercentPenalty  = 0;
                 _activeWeatherTag                      = card.WeatherTag;
                 _weatherLockBasin                      = card.WeatherLockBasin;
                 _weatherNullifyHydricWater              = card.WeatherNullifyHydricWater;
+                SyncWeatherToAllPlayers(runner);
                 // Apply project money penalty/bonus immediately for the current (in-progress) round
-                _roundProjectMoneyPercentPenalty += _weatherProjectMoneyPercentPenalty;
+_roundProjectMoneyPercentPenalty += _weatherProjectMoneyPercentPenalty;
                 _roundProjectMoneyFlatBonus      += _weatherProjectMoneyFlatBonusPerRound;
                 Debug.Log($"[GameManager] Weather card '{card.DisplayName}' activated. " +
                           $"Duration: {_weatherDurationRounds} extra rounds from round {_currentRound}.");
@@ -939,6 +971,7 @@ _roundWaterGainFlatPenalty    = 0; _roundWaterGainPercentPenalty  = 0;
                     _basinService.ApplyDelta(basinFlat);
                     SyncBasinHealthToAllPlayers(runner);
                 }
+                SyncWeatherToAllPlayers(runner);
                 Debug.Log($"[GameManager] '{card.DisplayName}' terminated active weather. Basin flat delta: {basinFlat}.");
             }
 
@@ -1643,6 +1676,20 @@ _roundWaterGainFlatPenalty    = 0; _roundWaterGainPercentPenalty  = 0;
             }
         }
 
+        private void SyncWeatherToAllPlayers(NetworkRunner runner)
+        {
+            _activeWeatherVersion++;
+            foreach (var player in runner.ActivePlayers)
+            {
+                var data = GetPlayerData(player, runner);
+                if (data != null)
+                {
+                    data.ActiveWeatherTag = _activeWeatherTag;
+                    data.WeatherVersion = _activeWeatherVersion;
+                }
+            }
+        }
+
         private void EndRound(NetworkRunner runner)
         {
             _roundInProgress = false;
@@ -1788,9 +1835,12 @@ _roundWaterGainFlatPenalty    = 0; _roundWaterGainPercentPenalty  = 0;
 
             State = GameState.Minigame;
             
-            // Randomly select between the original minigame and the new pipe minigame
-            string[] minigameScenes = { "Minigame", "PipeMinigame" };
+            // Randomly select between the available minigames
+            string[] minigameScenes = { "Minigame", "PipeMinigame", "WeatherMinigame", "RainMinigame" };
             string selectedScene = minigameScenes[Random.Range(0, minigameScenes.Length)];
+
+            // Debug override
+            selectedScene = Networking.Services.MinigameDebugService.GetMinigameScene(selectedScene);
             
             Debug.Log($"[GameManager] All players ready. Sending everyone to {selectedScene}.");
 

@@ -1,0 +1,28 @@
+{
+    "asset": "dc1be211e6ffad24ea4eebc49caf671b",
+    "fileName": "019e5cba-ac54-7476-8852-2e40d09051b5.jpg",
+    "prompt": "flat illustration of a coastal village with palm trees flooded by the sea, blue water, rain, vibrant colors, cartoon style",
+    "negativePrompt": "",
+    "model": "game-ui-essentials-2",
+    "modelName": "Game UI Essentials 2.0",
+    "customSeed": -1,
+    "w3CTraceId": "",
+    "feedback": 0,
+    "refinementMode": "Generation",
+    "pixelateTargetSize": 0,
+    "pixelateKeepImageSize": false,
+    "pixelatePixelBlockSize": 0,
+    "pixelatePixelGridSize": 0,
+    "pixelateMode": 0,
+    "pixelateOutlineThickness": 0,
+    "doodles": {
+        "m_Items": []
+    },
+    "upscaleFactor": 0,
+    "dimensions": {
+        "width": 2048,
+        "height": 2048
+    },
+    "spriteSheet": false,
+    "duration": 0.0
+}

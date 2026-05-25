@@ -267,11 +267,12 @@ namespace Networking.UI
                 }
                 else
                 {
-                    localData.RPC_RequestValidatedTurnRoll(0);
-                    Debug.Log($"[TurnOrderPanel] RPC_RequestValidatedTurnRoll called for local player {_runner.LocalPlayer.PlayerId}");
+                    int debugRoll = Networking.Services.DiceDebugService.GetRoll(0);
+                    localData.RPC_RequestValidatedTurnRoll(debugRoll);
+                    Debug.Log($"[TurnOrderPanel] RPC_RequestValidatedTurnRoll called with value {debugRoll} for local player {_runner.LocalPlayer.PlayerId}");
                 }
             }
-            else
+else
             {
                 Debug.LogError("[TurnOrderPanel] Local PlayerSessionData not found!");
             }

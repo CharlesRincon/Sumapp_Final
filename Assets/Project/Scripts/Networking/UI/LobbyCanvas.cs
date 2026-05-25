@@ -42,13 +42,18 @@ namespace Networking.UI
         private bool _shownTurnNotificationThisTurn = false;
         [SerializeField] private TextMeshProUGUI _waterText;
         [SerializeField] private TextMeshProUGUI _moneyText;
+        [SerializeField] private ResourceChangeUI _resourceChangeUI;
         [SerializeField] private Button _rollDiceButton;
-        [SerializeField] private Button _openVuforiaButton;
+[SerializeField] private Button _openVuforiaButton;
         [SerializeField] private Button _openModelButton;
         [SerializeField] private TextMeshProUGUI _roundStatusText;
         [SerializeField] private TextMeshProUGUI _turnStatusText;
         [SerializeField] private Image _basinHealthImage;
         [SerializeField] private Image _basinHealthRadialFill;
+        [Header("Basin Health Sprites")]
+        [SerializeField] private Sprite _basinHealthySprite;
+        [SerializeField] private Sprite _basinMediumSprite;
+        [SerializeField] private Sprite _basinCriticalSprite;
         [SerializeField] private Transform _rivalPlayersContainer;
         [SerializeField] private GameObject _rivalPlayerPrefab;
         [Space]
@@ -188,6 +193,10 @@ namespace Networking.UI
             EnsureMinigameReadyUIController();
             _minigameReadyUIController?.InitializeStatus();
             InitializeGameLobbyStatus();
+
+            // Ensure turn notifications are hidden at start
+            EnsureAnimationsLogic();
+            _animationsLogic?.HideAnotherPlayerTurnNotification(_anotherPlayerTurnPanel);
         }
 
         private void OnDisable()
@@ -568,15 +577,31 @@ namespace Networking.UI
                 _tileText.text = BuildGameLobbyTileText(boardPosition, tileType);
             }
 
-            if (_waterText != null)
+            // Only trigger the dynamic resource animation when not busy with character jumps or notifications.
+            // This ensures the +/-, green/red animation isn't hidden by tile arrival animations.
+            bool isBusyAnimating = _diceRolling || _isProcessingNotification;
+
+            if (_resourceChangeUI != null)
             {
-                _waterText.text = $"{waterAmount}";
+                if (!isBusyAnimating)
+                {
+                    _resourceChangeUI.OnResourcesChanged(waterAmount, moneyAmount);
+                }
+            }
+            else
+            {
+                if (_waterText != null)
+                {
+                    _waterText.text = $"{waterAmount}";
+                }
+
+                if (_moneyText != null)
+                {
+                    _moneyText.text = $"{moneyAmount}";
+                }
             }
 
-            if (_moneyText != null)
-            {
-                _moneyText.text = $"{moneyAmount}";
-            }
+            RefreshBasinHealthImage(runner);
         }
 
         private void RefreshProjectDecisionUI(NetworkRunner runner)
@@ -595,29 +620,52 @@ namespace Networking.UI
             var gm = Networking.Managers.GameManager.Instance;
             if (gm == null) return;
 
-            var localData = gm.GetPlayerData(runner.LocalPlayer, runner);
-            if (localData == null) return;
+            int basinHealth;
+            int startingBasinHealth = gm.StartingBasinHealth;
 
-            int basinHealth = localData.BasinHealth;
-            if (localData.CurrentRound <= 0 && basinHealth <= 0)
+            var localData = runner != null ? gm.GetPlayerData(runner.LocalPlayer, runner) : null;
+            if (localData != null)
             {
-                basinHealth = gm.StartingBasinHealth;
+                basinHealth = localData.BasinHealth;
+                if (localData.CurrentRound <= 0 && basinHealth <= 0)
+                {
+                    basinHealth = startingBasinHealth;
+                }
+            }
+            else
+            {
+                basinHealth = startingBasinHealth;
             }
 
-            float normalizedHealth = (float)basinHealth / Mathf.Max(1, gm.StartingBasinHealth);
+            float normalizedHealth = (float)basinHealth / Mathf.Max(1, startingBasinHealth);
             float percentage = normalizedHealth * 100f;
 
             Color color;
+            Sprite statusSprite = null;
+
             if (percentage > 80f)
+            {
                 color = Color.green;
+                statusSprite = _basinHealthySprite;
+            }
             else if (percentage > 20f)
+            {
                 color = Color.yellow;
+                statusSprite = _basinMediumSprite;
+            }
             else
+            {
                 color = Color.red;
+                statusSprite = _basinCriticalSprite;
+            }
 
             if (_basinHealthImage != null)
             {
-                _basinHealthImage.color = color;
+                _basinHealthImage.color = Color.white;
+                if (statusSprite != null)
+                {
+                    _basinHealthImage.sprite = statusSprite;
+                }
             }
 
             if (_basinHealthRadialFill != null)

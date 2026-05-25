@@ -1,0 +1,28 @@
+{
+    "asset": "65c41a1daff1454468ac5c117d90e83d",
+    "fileName": "019e5cba-521b-745a-b52b-9a31c44254a1.jpg",
+    "prompt": "flat illustration of a landslide on a road in the coffee region of Colombia, mud, rain, mountains, vibrant colors, cartoon style",
+    "negativePrompt": "",
+    "model": "game-ui-essentials-2",
+    "modelName": "Game UI Essentials 2.0",
+    "customSeed": -1,
+    "w3CTraceId": "",
+    "feedback": 0,
+    "refinementMode": "Generation",
+    "pixelateTargetSize": 0,
+    "pixelateKeepImageSize": false,
+    "pixelatePixelBlockSize": 0,
+    "pixelatePixelGridSize": 0,
+    "pixelateMode": 0,
+    "pixelateOutlineThickness": 0,
+    "doodles": {
+        "m_Items": []
+    },
+    "upscaleFactor": 0,
+    "dimensions": {
+        "width": 2048,
+        "height": 2048
+    },
+    "spriteSheet": false,
+    "duration": 0.0
+}

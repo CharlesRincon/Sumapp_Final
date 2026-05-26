@@ -39,6 +39,7 @@ namespace Networking.UI
         private bool _playerCardsInitialized = false;
         private int _updatePlayerCountsCallCount = 0;
         private int _lastFrameUpdateCalled = -1;
+        private Vector3 _originalLeaderboardScale = Vector3.one;
 
         private void OnEnable()
         {
@@ -50,6 +51,11 @@ namespace Networking.UI
             if (OnGameEndEvent != null)
             {
                 OnGameEndEvent.RegisterResponse(OnGameEnd);
+                Debug.Log($"[MinigameUI] Registered to OnGameEndEvent: {OnGameEndEvent.name} (ID: {OnGameEndEvent.GetInstanceID()})");
+            }
+            else
+            {
+                Debug.LogError("[MinigameUI] Failed to load OnGameEndEvent!");
             }
         }
 
@@ -87,6 +93,7 @@ namespace Networking.UI
             // Hide leaderboard initially
             if (_leaderboardPanel != null)
             {
+                _originalLeaderboardScale = _leaderboardPanel.transform.localScale;
                 _leaderboardPanel.SetActive(false);
             }
 
@@ -282,6 +289,12 @@ namespace Networking.UI
                 return;
             }
 
+            // Clear existing entries
+            foreach (Transform child in _leaderboardContainer)
+            {
+                Destroy(child.gameObject);
+            }
+
             // Get leaderboard
             var leaderboard = _minigameManager.GetLeaderboard();
             Debug.Log($"[MinigameUI] Displaying {leaderboard.Count} leaderboard entries.");
@@ -300,9 +313,16 @@ namespace Networking.UI
                 var textComponent = cardGO.GetComponentInChildren<TextMeshProUGUI>();
                 if (textComponent != null)
                 {
-                    textComponent.text = $"#{place} {entry.name}: {entry.clicks} clicks";
-                    Debug.Log($"[MinigameUI] Entry {place}: {entry.name} - {entry.clicks} clicks");
+                    textComponent.text = $"#{place} {entry.name}: {entry.clicks} pts";
+                    Debug.Log($"[MinigameUI] Entry {place}: {entry.name} - {entry.clicks} pts");
                 }
+            }
+
+            // Optional: Ensure panel is scaled correctly if it starts tiny
+            if (_leaderboardPanel != null)
+            {
+                _leaderboardPanel.transform.localScale = Vector3.zero;
+                LeanTween.scale(_leaderboardPanel, _originalLeaderboardScale, 0.5f).setEaseOutBack();
             }
 
             Debug.Log("[MinigameUI] Leaderboard populated successfully.");

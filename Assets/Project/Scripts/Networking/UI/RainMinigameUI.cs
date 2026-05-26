@@ -32,6 +32,7 @@ namespace Networking.UI
         private bool _gameEnded = false;
         private bool _playerCardsInitialized = false;
         private Dictionary<PlayerRef, TextMeshProUGUI> _activePlayerTexts = new Dictionary<PlayerRef, TextMeshProUGUI>();
+        private Vector3 _originalLeaderboardScale = Vector3.one;
 
         private void OnEnable()
         {
@@ -49,7 +50,11 @@ namespace Networking.UI
             _manager = FindFirstObjectByType<RainMinigameManager>();
             _runner = FindFirstObjectByType<NetworkRunner>();
             
-            if (_leaderboardPanel != null) _leaderboardPanel.SetActive(false);
+            if (_leaderboardPanel != null)
+            {
+                _originalLeaderboardScale = _leaderboardPanel.transform.localScale;
+                _leaderboardPanel.SetActive(false);
+            }
             if (_countdownPanel != null) _countdownPanel.SetActive(true);
         }
 
@@ -170,6 +175,13 @@ namespace Networking.UI
                     text.text = $"#{i + 1} {entry.name}: {entry.score} puntos";
                     text.alignment = TextAlignmentOptions.Center;
                 }
+            }
+
+            // Animation
+            if (_leaderboardPanel != null)
+            {
+                _leaderboardPanel.transform.localScale = Vector3.zero;
+                LeanTween.scale(_leaderboardPanel, _originalLeaderboardScale, 0.5f).setEaseOutBack();
             }
         }
     }

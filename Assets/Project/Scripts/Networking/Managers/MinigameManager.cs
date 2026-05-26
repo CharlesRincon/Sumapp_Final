@@ -21,19 +21,17 @@ namespace Networking.Managers
 
         // Network-synchronized state
         [Networked]
-        private float RemainingTime { get; set; }
+        protected float RemainingTime { get; set; }
 
         [Networked]
         private NetworkBool GameActive { get; set; }
 
-        // Runtime state
-        private NetworkRunner _runner;
-
         public float GetRemainingTime() => RemainingTime;
         public bool IsGameActive() => GameActive;
+
         public int GetPlayerClickCount(PlayerRef player)
         {
-            var playerData = GameManager.Instance.GetPlayerData(player, _runner);
+            var playerData = GameManager.Instance.GetPlayerData(player, Runner);
             int clickCount = playerData != null ? playerData.MinigameClickCount : 0;
             Debug.Log($"[MinigameManager.GetPlayerClickCount] Player{player.PlayerId}: clickCount={clickCount}, playerData is {(playerData != null ? "VALID" : "NULL")}");
             return clickCount;
@@ -41,7 +39,7 @@ namespace Networking.Managers
         public Dictionary<PlayerRef, int> GetAllClickCounts()
         {
             var counts = new Dictionary<PlayerRef, int>();
-            foreach (var player in _runner.ActivePlayers)
+            foreach (var player in Runner.ActivePlayers)
             {
                 counts[player] = GetPlayerClickCount(player);
             }
@@ -50,9 +48,7 @@ namespace Networking.Managers
 
         public override void Spawned()
         {
-            _runner = Runner;
-
-            Debug.Log($"[MinigameManager] ✓ Spawned! IsHost: {Object.HasStateAuthority}, ActivePlayers: {_runner.ActivePlayers.Count()}");
+            Debug.Log($"[MinigameManager] ✓ Spawned! IsHost: {Object.HasStateAuthority}, ActivePlayers: {Runner.ActivePlayers.Count()}");
 
             // Only host initializes the game
             if (Object.HasStateAuthority)
@@ -62,7 +58,7 @@ namespace Networking.Managers
                 
                 RemainingTime = _gameDurationSeconds;
                 GameActive = true;
-                Debug.Log($"[MinigameManager] ✓ Host initialized timer. {_gameDurationSeconds}s, {_runner.ActivePlayers.Count()} players.");
+                Debug.Log($"[MinigameManager] ✓ Host initialized timer. {_gameDurationSeconds}s, {Runner.ActivePlayers.Count()} players.");
             }
             else
             {
@@ -82,9 +78,9 @@ namespace Networking.Managers
                 return;
             }
 
-            foreach (var player in _runner.ActivePlayers)
+            foreach (var player in Runner.ActivePlayers)
             {
-                var playerData = GameManager.Instance.GetPlayerData(player, _runner);
+                var playerData = GameManager.Instance.GetPlayerData(player, Runner);
                 if (playerData != null)
                 {
                     playerData.MinigameClickCount = 0;
@@ -106,7 +102,7 @@ namespace Networking.Managers
                 return;
 
             // Countdown timer
-            RemainingTime -= _runner.DeltaTime;
+            RemainingTime -= Runner.DeltaTime;
 
             // Game ended
             if (RemainingTime <= 0f)
@@ -126,7 +122,7 @@ namespace Networking.Managers
             var leaderboard = new List<(PlayerRef, int, string)>();
 
             // Build list from active players sorted by their MinigameClickCount
-            var sortedPlayers = _runner.ActivePlayers.ToList();
+            var sortedPlayers = Runner.ActivePlayers.ToList();
             sortedPlayers.Sort((a, b) =>
             {
                 int clicksA = GetPlayerClickCount(a);
@@ -136,7 +132,7 @@ namespace Networking.Managers
 
             foreach (var player in sortedPlayers)
             {
-                var playerData = GameManager.Instance.GetPlayerData(player, _runner);
+                var playerData = GameManager.Instance.GetPlayerData(player, Runner);
                 string playerName = playerData != null ? (string)playerData.Nick : $"Player {player.PlayerId}";
                 int clicks = GetPlayerClickCount(player);
                 leaderboard.Add((player, clicks, playerName));
@@ -171,7 +167,7 @@ namespace Networking.Managers
             var winner = leaderboard[0];
             if (winner.clicks <= 0) return;
 
-            var winnerData = GameManager.Instance.GetPlayerData(winner.player, _runner);
+            var winnerData = GameManager.Instance.GetPlayerData(winner.player, Runner);
             if (winnerData != null)
             {
                 winnerData.WaterAmount += _winnerWaterReward;
@@ -183,12 +179,12 @@ namespace Networking.Managers
         {
             yield return new UnityEngine.WaitForSeconds(_leaderboardDisplaySeconds);
 
-            if (_runner == null || !_runner.IsServer) yield break;
+            if (Runner == null || !Runner.IsServer) yield break;
 
             Debug.Log("[MinigameManager] Leaderboard shown. Sending all players back to lobby.");
-            foreach (var player in _runner.ActivePlayers)
+            foreach (var player in Runner.ActivePlayers)
             {
-                var data = Networking.Managers.GameManager.Instance?.GetPlayerData(player, _runner);
+                var data = Networking.Managers.GameManager.Instance?.GetPlayerData(player, Runner);
                 if (data != null)
                     data.RPC_LoadLobbyScene();
             }
@@ -202,7 +198,7 @@ namespace Networking.Managers
         private void RPC_NotifyGameEnd()
         {
             Debug.Log("[MinigameManager] RPC_NotifyGameEnd received. Firing OnGameEndEvent on all clients.");
-            OnGameEndEvent?.Raise(PlayerRef.None, _runner);
+            OnGameEndEvent?.Raise(PlayerRef.None, Runner);
         }
 
         public override void Despawned(NetworkRunner runner, bool hasState)

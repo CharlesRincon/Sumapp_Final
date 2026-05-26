@@ -45,16 +45,22 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2e5639694cf56db4eb313eece1749302, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Networking.Managers.RainMinigameManager
+  _preGameDurationSeconds: 3
   _gameDurationSeconds: 20
-  _leaderboardDisplaySeconds: 5
+  _leaderboardDisplaySeconds: 10
   _winnerWaterReward: 3
-  _spawnInterval: 0.5
+  _resetScoreOnSpawn: 0
+  _baseSpawnInterval: 0.3
+  _minSpawnInterval: 0.1
   _spawnXRange: {x: -800, y: 800}
   _spawnY: 600
+  _baseFallSpeed: 600
+  _maxFallSpeedMultiplier: 2
   _regularDropPrefab: {fileID: 5964207171458294660, guid: 2e044ea39f2c3414894869e905b2ca24, type: 3}
   _highValueDropPrefab: {fileID: 8220430654802158444, guid: f8ed0cb9a76ac6d408bc0348fbad302b, type: 3}
   _contaminatedDropPrefab: {fileID: 7078421192671433317, guid: e319bfa1b24cda14c87cd52d48aa161b, type: 3}
-  OnGameEndEvent: {fileID: 0}
+  OnGameEndEvent: {fileID: 11400000, guid: fcee5ba3b3b749142b9b3da09fff54fe, type: 2}
+  _CurrentFallSpeed: 0
 --- !u!114 &5396336642131911829
 MonoBehaviour:
   m_ObjectHideFlags: 0

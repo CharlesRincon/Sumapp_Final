@@ -29,25 +29,59 @@ namespace Networking.Managers
         [Networked] private float RemainingTime { get; set; }
         [Networked] private int CurrentCardIndex { get; set; }
         [Networked] private NetworkBool GameActive { get; set; }
+        [Networked, Capacity(50)] private NetworkArray<int> _cardOrder { get; }
 
         private NetworkRunner _networkRunner;
 
         public float GetRemainingTime() => RemainingTime;
         public int GetCurrentCardIndex() => CurrentCardIndex;
         public bool IsGameActive() => GameActive;
-        public WeatherCardDefinition GetCurrentCard() => (CurrentCardIndex >= 0 && CurrentCardIndex < _cards.Length) ? _cards[CurrentCardIndex] : null;
+        
+        public WeatherCardDefinition GetCurrentCard() 
+        {
+            if (_cards == null || _cards.Length == 0) return null;
+            if (CurrentCardIndex < 0) return null;
+            
+            // Use modulo to loop the shuffled order if there are more time slots than cards
+            int orderIndex = CurrentCardIndex % _cards.Length;
+            int shuffledIndex = _cardOrder[orderIndex];
+            return _cards[shuffledIndex];
+        }
 
         public override void Spawned()
         {
             _networkRunner = Runner;
             if (Object.HasStateAuthority)
             {
+                InitializeCardOrder();
                 ResetAllPlayerScores();
                 RemainingTime = _totalDuration;
                 CurrentCardIndex = 0;
                 _lastProcessedIndex = -1;
                 _playersAnsweredCurrentCard.Clear();
                 GameActive = true;
+            }
+        }
+
+        private void InitializeCardOrder()
+        {
+            if (_cards == null || _cards.Length == 0) return;
+
+            List<int> indices = new List<int>();
+            for (int i = 0; i < _cards.Length; i++) indices.Add(i);
+
+            // Fisher-Yates Shuffle
+            for (int i = 0; i < indices.Count; i++)
+            {
+                int temp = indices[i];
+                int randomIndex = UnityEngine.Random.Range(i, indices.Count);
+                indices[i] = indices[randomIndex];
+                indices[randomIndex] = temp;
+            }
+
+            for (int i = 0; i < indices.Count; i++)
+            {
+                _cardOrder.Set(i, indices[i]);
             }
         }
 

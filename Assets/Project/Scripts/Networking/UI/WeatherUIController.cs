@@ -20,6 +20,7 @@ namespace Networking.UI
         [SerializeField] private UnityEngine.UI.Slider _nextCardBar;
         [SerializeField] private Transform _scoreContainer;
         [SerializeField] private GameObject _playerCardPrefab;
+        [SerializeField] private GameObject _leaderboardPlayerPrefab;
         [SerializeField] private GameObject _leaderboardPanel;
         [SerializeField] private Transform _leaderboardContainer;
         [SerializeField] private UnityEngine.UI.Button _elNinoButton;
@@ -256,14 +257,17 @@ namespace Networking.UI
 
         private void DisplayLeaderboard()
         {
-            if (_leaderboardContainer == null || _playerCardPrefab == null || _manager == null) return;
+            if (_leaderboardContainer == null || _manager == null) return;
+            
+            GameObject prefabToUse = _leaderboardPlayerPrefab != null ? _leaderboardPlayerPrefab : _playerCardPrefab;
+            if (prefabToUse == null) return;
 
             foreach (Transform child in _leaderboardContainer) Destroy(child.gameObject);
             
             var leaderboard = _manager.GetLeaderboard();
             for (int i = 0; i < leaderboard.Count; i++)
             {
-                var entry = Instantiate(_playerCardPrefab, _leaderboardContainer);
+                var entry = Instantiate(prefabToUse, _leaderboardContainer);
                 entry.transform.localScale = Vector3.one;
                 var text = entry.GetComponentInChildren<TextMeshProUGUI>();
                 if (text == null) text = entry.GetComponent<TextMeshProUGUI>();

@@ -23,11 +23,11 @@ namespace Networking.UI
         [SerializeField] private TextMeshProUGUI _cardInfoTitleText;
         [SerializeField] private TextMeshProUGUI _cardInfoLoreText;
         [SerializeField] private TextMeshProUGUI _cardInfoEffectText;
-        [SerializeField] private float _cardInfoAutoHideSeconds = 4.0f;
+        [SerializeField] private Button _cardInfoReturnButton;
 
         public bool IsProjectFlowVisible { get; private set; }
         private string _lastShownCardTitle;
-        private float _cardInfoVisibleUntil;
+        private bool _isCardInfoManuallyHidden;
 
         private void Awake()
         {
@@ -44,6 +44,11 @@ namespace Networking.UI
             if (_projectDeclineButton != null)
             {
                 _projectDeclineButton.onClick.AddListener(OnProjectDeclineClicked);
+            }
+
+            if (_cardInfoReturnButton != null)
+            {
+                _cardInfoReturnButton.onClick.AddListener(OnCardInfoReturnClicked);
             }
         }
 
@@ -63,13 +68,18 @@ namespace Networking.UI
             {
                 _projectDeclineButton.onClick.RemoveListener(OnProjectDeclineClicked);
             }
+
+            if (_cardInfoReturnButton != null)
+            {
+                _cardInfoReturnButton.onClick.RemoveListener(OnCardInfoReturnClicked);
+            }
         }
 
         public void InitializePanels()
         {
             IsProjectFlowVisible = false;
             _lastShownCardTitle = string.Empty;
-            _cardInfoVisibleUntil = 0f;
+            _isCardInfoManuallyHidden = false;
 
             if (_projectDecisionPanel != null)
             {
@@ -101,7 +111,7 @@ namespace Networking.UI
             var lobbyCanvas = FindFirstObjectByType<LobbyCanvas>();
             bool isNotificationActive = (lobbyCanvas != null && lobbyCanvas.IsProcessingNotification);
 
-            IsProjectFlowVisible = projectFlowActive || isAwaitingCardScan || hasCardInfo;
+            IsProjectFlowVisible = projectFlowActive || isAwaitingCardScan || (hasCardInfo && !_isCardInfoManuallyHidden);
 
             if (isAwaitingProjectDecision && isVuforiaOpen && !isNotificationActive
                 && _projectDecisionPanel != null && !_projectDecisionPanel.activeSelf)
@@ -110,16 +120,16 @@ namespace Networking.UI
             }
 
             bool showCardInfo = false;
-            if (isVuforiaOpen && hasCardInfo && !isAwaitingProjectDecision)
+            if (isVuforiaOpen && hasCardInfo && !isAwaitingProjectDecision && !isAwaitingCardScan)
             {
                 string title = localData.PendingCardTitle.ToString();
                 if (!string.Equals(_lastShownCardTitle, title, System.StringComparison.Ordinal))
                 {
                     _lastShownCardTitle = title;
-                    _cardInfoVisibleUntil = Time.unscaledTime + Mathf.Max(0.1f, _cardInfoAutoHideSeconds);
+                    _isCardInfoManuallyHidden = false;
                 }
 
-                showCardInfo = Time.unscaledTime < _cardInfoVisibleUntil;
+                showCardInfo = !_isCardInfoManuallyHidden;
             }
             if (_cardInfoPanel != null)
             {
@@ -251,18 +261,20 @@ namespace Networking.UI
                 }
 
                 string name = $"Project {slot.id}";
+                string description = "";
                 int water = 0;
                 int money = 0;
 
                 if (projectDatabase != null && projectDatabase.TryGetProject(slot.id, out var projectDef) && projectDef != null)
                 {
                     name = projectDef.DisplayName;
+                    description = projectDef.Description;
                     var (w, m) = projectDef.GetIncomeForZone((Networking.Models.ColombiaZone)slot.zone);
                     water = w;
                     money = m;
                 }
 
-                label.text = $"{name}";
+                label.text = $"<b>{name}</b>\n{description}";
                 entryIndex++;
             }
         }
@@ -310,6 +322,11 @@ namespace Networking.UI
             }
 
             localData.RPC_RequestDeclinePendingProject();
+        }
+
+        private void OnCardInfoReturnClicked()
+        {
+            _isCardInfoManuallyHidden = true;
         }
     }
 }

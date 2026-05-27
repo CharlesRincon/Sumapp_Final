@@ -6,7 +6,7 @@ using UnityEngine.UI;
 
 namespace Networking.Managers
 {
-    public class RainDrop : NetworkBehaviour, IPointerDownHandler
+    public class RainDrop : MonoBehaviour, IPointerDownHandler
     {
         [SerializeField] private int _points = 1;
         [SerializeField] private float _destroyY = -1100f;
@@ -16,7 +16,7 @@ namespace Networking.Managers
         private bool _isClicked = false;
         private RainMinigameManager _manager;
 
-        public override void Spawned()
+        private void Start()
         {
             _rectTransform = GetComponent<RectTransform>();
             _canvasGroup = GetComponent<CanvasGroup>();
@@ -34,20 +34,20 @@ namespace Networking.Managers
             LeanTween.scale(gameObject, Vector3.one * 0.25f, 0.3f).setEaseOutBack();
         }
 
-        public override void FixedUpdateNetwork()
+        private void Update()
         {
             if (_isClicked) return;
 
-            // Move down using RectTransform anchored position locally on all clients
+            // Move down using RectTransform anchored position locally
             float speed = _manager != null ? _manager.CurrentFallSpeed : 600f;
             Vector2 pos = _rectTransform.anchoredPosition;
-            pos.y -= speed * Runner.DeltaTime;
+            pos.y -= speed * Time.deltaTime;
             _rectTransform.anchoredPosition = pos;
 
-            // Only authority handles destruction
-            if (Object.HasStateAuthority && _rectTransform.anchoredPosition.y < _destroyY)
+            // Handle destruction locally
+            if (_rectTransform.anchoredPosition.y < _destroyY)
             {
-                Runner.Despawn(Object);
+                Destroy(gameObject);
             }
         }
 
@@ -56,14 +56,18 @@ namespace Networking.Managers
             if (_isClicked) return;
             _isClicked = true;
 
-            var localPlayer = Runner.LocalPlayer;
-            var playerObject = Runner.GetPlayerObject(localPlayer);
-            if (playerObject != null)
+            var runner = Services.FusionNetworkService.LocalRunner;
+            if (runner != null)
             {
-                var data = playerObject.GetComponent<PlayerSessionData>();
-                if (data != null)
+                var localPlayer = runner.LocalPlayer;
+                var gameManager = GameManager.Instance;
+                if (gameManager != null)
                 {
-                    data.RPC_AddMinigamePoints(_points);
+                    var data = gameManager.GetPlayerData(localPlayer, runner);
+                    if (data != null)
+                    {
+                        data.RPC_AddMinigamePoints(_points);
+                    }
                 }
             }
 
@@ -72,21 +76,12 @@ namespace Networking.Managers
             if (_canvasGroup != null)
             {
                 LeanTween.alphaCanvas(_canvasGroup, 0f, 0.2f).setOnComplete(() => {
-                    RPC_RequestDespawn();
+                    Destroy(gameObject);
                 });
             }
             else
             {
-                RPC_RequestDespawn();
-            }
-        }
-
-        [Rpc(sources: RpcSources.All, targets: RpcTargets.StateAuthority)]
-        private void RPC_RequestDespawn()
-        {
-            if (Object != null && Object.IsValid)
-            {
-                Runner.Despawn(Object);
+                Destroy(gameObject);
             }
         }
     }

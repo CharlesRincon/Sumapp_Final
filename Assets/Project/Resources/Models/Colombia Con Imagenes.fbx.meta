@@ -5,6 +5,11 @@ ModelImporter:
   internalIDToNameTable: []
   externalObjects:
   - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Malla agua
+    second: {fileID: 2100000, guid: 469a15f7a8c202c40924d6a7d63482ef, type: 2}
+  - first:
       type: UnityEngine:Texture2D
       assembly: UnityEngine.CoreModule
       name: AMAZONAS Flor_Arbusto_Piedra

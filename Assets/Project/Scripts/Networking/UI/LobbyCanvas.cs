@@ -615,7 +615,7 @@ namespace Networking.UI
 
         private void RefreshBasinHealthImage(NetworkRunner runner)
         {
-            if (_basinHealthImage == null && _basinHealthRadialFill == null) return;
+            if (_basinHealthImage == null && _basinHealthRadialFill == null && _modelViewerController == null) return;
 
             var gm = Networking.Managers.GameManager.Instance;
             if (gm == null) return;
@@ -639,6 +639,11 @@ namespace Networking.UI
 
             float normalizedHealth = (float)basinHealth / Mathf.Max(1, startingBasinHealth);
             float percentage = normalizedHealth * 100f;
+
+            if (_modelViewerController != null)
+            {
+                _modelViewerController.RefreshBasinModels(percentage);
+            }
 
             Color color;
             Sprite statusSprite = null;

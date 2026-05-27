@@ -24,18 +24,12 @@ namespace Networking.Managers
         [SerializeField]
         private FusionEvent OnGameEndEvent;
 
-        [SerializeField]
-        private bool _resetScoreOnSpawn = false;
-
         // Network-synchronized state
         [Networked]
         private NetworkBool GameActive { get; set; }
 
         [Networked]
         private NetworkBool IsRaceEnded { get; set; }
-
-        // Local tracking to handle cumulative scores if not resetting
-        private Dictionary<PlayerRef, int> _startingClickCounts = new Dictionary<PlayerRef, int>();
 
         // Runtime state
         private NetworkRunner _minigameRunner;
@@ -50,11 +44,6 @@ namespace Networking.Managers
             var runner = RunnerRef;
             var playerData = GameManager.Instance.GetPlayerData(player, runner);
             if (playerData == null) return 0;
-
-            if (!_resetScoreOnSpawn && _startingClickCounts.ContainsKey(player))
-            {
-                return Mathf.Max(0, playerData.MinigameClickCount - _startingClickCounts[player]);
-            }
             
             return playerData.MinigameClickCount;
         }
@@ -65,21 +54,9 @@ namespace Networking.Managers
 
             Debug.Log($"[PipeMinigameManager] Spawned! IsHost: {Object.HasStateAuthority}");
 
-            // Cache starting counts on all clients to track repairs correctly in UI and Logic
-            foreach (var player in _minigameRunner.ActivePlayers)
-            {
-                var data = GameManager.Instance.GetPlayerData(player, _minigameRunner);
-                if (data != null) _startingClickCounts[player] = data.MinigameClickCount;
-            }
-
             if (Object.HasStateAuthority)
             {
-                if (_resetScoreOnSpawn)
-                {
-                    ResetAllPlayerClickCounts();
-                    // Clear cache since we just reset everything to 0
-                    _startingClickCounts.Clear();
-                }
+                ResetAllPlayerClickCounts();
                 
                 GameActive = true;
                 IsRaceEnded = false;

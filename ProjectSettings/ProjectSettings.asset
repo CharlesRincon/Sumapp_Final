@@ -941,11 +941,11 @@ PlayerSettings:
   captureStartupLogs: {}
   activeInputHandler: 1
   windowsGamepadBackendHint: 0
-  cloudProjectId: 9d735489-8a00-43b3-8f64-4edf7e3e00e8
+  cloudProjectId: 157f9766-6e81-412c-bd5d-49893994e4f4
   framebufferDepthMemorylessMode: 0
   qualitySettingsNames: []
-  projectName: Sumapp_Final
-  organizationId: neoswamp
+  projectName: Sumak_ReDo
+  organizationId: sebastianrn646
   cloudEnabled: 0
   legacyClampBlendShapeWeights: 0
   hmiLoadingImage: {fileID: 0}

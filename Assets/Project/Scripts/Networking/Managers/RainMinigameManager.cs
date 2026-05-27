@@ -13,13 +13,12 @@ namespace Networking.Managers
         [SerializeField] private float _gameDurationSeconds = 20f;
         [SerializeField] private float _leaderboardDisplaySeconds = 8f;
         [SerializeField] private int _winnerWaterReward = 3;
-        [SerializeField] private bool _resetScoreOnSpawn = false;
 
         [Header("Spawning")]
         [SerializeField] private float _baseSpawnInterval = 0.3f;
         [SerializeField] private float _minSpawnInterval = 0.1f;
-        [SerializeField] private Vector2 _spawnXRange = new Vector2(-250, 250);
-        [SerializeField] private float _spawnY = 600f;
+        private Vector2 _spawnXRange = new Vector2(-250, 250);
+        private float _spawnY = 600f;
 
         [Header("Difficulty Scaling")]
         [SerializeField] private float _baseFallSpeed = 600f;
@@ -40,8 +39,8 @@ namespace Networking.Managers
         [Networked] public float CurrentFallSpeed { get; set; }
 
         private NetworkRunner _minigameRunner;
-        private float _nextSpawnTime;
-        private Dictionary<PlayerRef, int> _startingClickCounts = new Dictionary<PlayerRef, int>();
+        private float _localNextSpawnTime;
+        private RectTransform _dropsContainer;
 
         public float GetRemainingTime() => RemainingTime;
         public float GetPreGameTime() => PreGameTime;
@@ -52,20 +51,17 @@ namespace Networking.Managers
         {
             _minigameRunner = Runner;
 
-            // Cache starting counts on all clients to track relative progress during game
-            foreach (var player in _minigameRunner.ActivePlayers)
+            // Find container and calculate bounds
+            var containerGO = GameObject.Find("DropsContainer");
+            if (containerGO != null)
             {
-                var data = GameManager.Instance.GetPlayerData(player, _minigameRunner);
-                if (data != null) _startingClickCounts[player] = data.MinigameClickCount;
+                _dropsContainer = containerGO.GetComponent<RectTransform>();
+                CalculateSpawnBounds();
             }
 
             if (Object.HasStateAuthority)
             {
-                if (_resetScoreOnSpawn)
-                {
-                    ResetAllPlayerScores();
-                    _startingClickCounts.Clear();
-                }
+                ResetAllPlayerScores();
                 
                 PreGameTime = _preGameDurationSeconds;
                 RemainingTime = _gameDurationSeconds;
@@ -73,6 +69,21 @@ namespace Networking.Managers
                 IsGameEnded = false;
                 CurrentFallSpeed = _baseFallSpeed;
             }
+        }
+
+        private void CalculateSpawnBounds()
+        {
+            if (_dropsContainer == null) return;
+
+            // Use container width to set spawn range. 
+            // Margin of 50px to keep drops fully visible.
+            float halfWidth = _dropsContainer.rect.width * 0.5f;
+            _spawnXRange = new Vector2(-halfWidth + 50f, halfWidth - 50f);
+            
+            // Spawn at the top of the container
+            _spawnY = _dropsContainer.rect.height * 0.5f;
+            
+            Debug.Log($"[RainMinigameManager] Bounds calculated: X={_spawnXRange}, Y={_spawnY}");
         }
 
         private void ResetAllPlayerScores()
@@ -88,6 +99,7 @@ namespace Networking.Managers
 
         public override void FixedUpdateNetwork()
         {
+            // Only Host manages global state
             if (!Object.HasStateAuthority || IsGameEnded) return;
 
             if (PreGameTime > 0)
@@ -97,7 +109,6 @@ namespace Networking.Managers
                 {
                     PreGameTime = 0;
                     GameActive = true;
-                    _nextSpawnTime = (float)Runner.SimulationTime + _baseSpawnInterval;
                 }
                 return;
             }
@@ -109,7 +120,6 @@ namespace Networking.Managers
             // Calculate difficulty scaling
             float progress = 1f - (RemainingTime / _gameDurationSeconds);
             CurrentFallSpeed = _baseFallSpeed * (1f + (progress * (_maxFallSpeedMultiplier - 1f)));
-            float currentInterval = Mathf.Lerp(_baseSpawnInterval, _minSpawnInterval, progress);
 
             if (RemainingTime <= 0f)
             {
@@ -119,30 +129,46 @@ namespace Networking.Managers
                 EndGame();
                 return;
             }
+        }
 
-            if ((float)Runner.SimulationTime >= _nextSpawnTime)
+        private void Update()
+        {
+            // Every player runs their own local spawning
+            if (!GameActive || IsGameEnded) return;
+
+            if (Time.time >= _localNextSpawnTime)
             {
-                SpawnRandomDrop();
-                _nextSpawnTime = (float)Runner.SimulationTime + currentInterval;
+                SpawnRandomDropLocal();
+                
+                // Calculate current interval based on networked progress
+                float progress = 1f - (RemainingTime / _gameDurationSeconds);
+                float currentInterval = Mathf.Lerp(_baseSpawnInterval, _minSpawnInterval, progress);
+                _localNextSpawnTime = Time.time + currentInterval;
             }
         }
 
-        private void SpawnRandomDrop()
+        private void SpawnRandomDropLocal()
         {
+            if (_dropsContainer == null) return;
+
             float randX = Random.Range(_spawnXRange.x, _spawnXRange.y);
             Vector2 spawnPos = new Vector2(randX, _spawnY);
 
             float roll = Random.value;
             GameObject prefabToSpawn = _regularDropPrefab;
 
-            // Rarity Adjustments:
-            // Golden (High Value): 5%
-            // Contaminated: 20%
-            // Regular: 75%
             if (roll < 0.05f) prefabToSpawn = _highValueDropPrefab;
             else if (roll < 0.25f) prefabToSpawn = _contaminatedDropPrefab;
 
-            _minigameRunner.Spawn(prefabToSpawn, spawnPos, Quaternion.identity, Object.InputAuthority);
+            if (prefabToSpawn != null)
+            {
+                var dropGO = Instantiate(prefabToSpawn, _dropsContainer);
+                var rt = dropGO.GetComponent<RectTransform>();
+                if (rt != null)
+                {
+                    rt.anchoredPosition = spawnPos;
+                }
+            }
         }
 
         private void EndGame()
@@ -199,7 +225,6 @@ namespace Networking.Managers
                 list.Add(new LeaderboardEntry
                 {
                     player = p,
-                    // Show final cumulative score in leaderboard
                     score = data != null ? data.MinigameClickCount : 0,
                     name = data != null ? (string)data.Nick : $"P{p.PlayerId}"
                 });
@@ -217,18 +242,10 @@ namespace Networking.Managers
                 var data = GameManager.Instance.GetPlayerData(p, _minigameRunner);
                 if (data == null) continue;
 
-                int total = data.MinigameClickCount;
-                if (!_resetScoreOnSpawn && _startingClickCounts.ContainsKey(p))
-                {
-                    // Show points earned ONLY in this minigame session during active gameplay
-                    dict[p] = Mathf.Max(0, total - _startingClickCounts[p]);
-                }
-                else
-                {
-                    dict[p] = total;
-                }
+                dict[p] = data.MinigameClickCount;
             }
             return dict;
         }
     }
 }
+

@@ -53,7 +53,6 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Networking.Managers.RainDrop
   _points: 1
-  _fallSpeed: 300
   _destroyY: -600
 --- !u!114 &4106907810366024418
 MonoBehaviour:
@@ -71,8 +70,7 @@ MonoBehaviour:
   ObjectInterest: 1
   Flags: 262145
   NestedObjects: []
-  NetworkedBehaviours:
-  - {fileID: 4297684804183583629}
+  NetworkedBehaviours: []
   ForceRemoteRenderTimeframe: 0
 --- !u!222 &725614914912901130
 CanvasRenderer:

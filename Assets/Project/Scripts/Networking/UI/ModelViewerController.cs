@@ -47,6 +47,11 @@ namespace Networking.UI
         [Header("Panel")]
         [SerializeField] private GameObject _panel;
 
+        [Header("Basin Models")]
+        [SerializeField] private GameObject _healthyModel;
+        [SerializeField] private GameObject _mediumModel;
+        [SerializeField] private GameObject _criticalModel;
+
         // ── Internal State ──────────────────────────────────────────────
         private RenderTexture _rt;
         private float _currentScale = 1f;
@@ -77,6 +82,9 @@ namespace Networking.UI
             // Capture the model's initial scale so zoom starts from whatever was set in the scene.
             if (_modelPivot != null)
                 _currentScale = _modelPivot.localScale.x;
+            
+            // Initialize basin models visibility
+            RefreshBasinModels(100f);
         }
 
         private void Start()
@@ -103,6 +111,13 @@ namespace Networking.UI
         }
 
         // ── Public API ──────────────────────────────────────────────────
+        public void RefreshBasinModels(float percentage)
+        {
+            if (_healthyModel != null) _healthyModel.SetActive(percentage > 80f);
+            if (_mediumModel != null) _mediumModel.SetActive(percentage > 20f && percentage <= 80f);
+            if (_criticalModel != null) _criticalModel.SetActive(percentage <= 20f);
+        }
+
         public void Show()
         {
             if (_panel != null) _panel.SetActive(true);

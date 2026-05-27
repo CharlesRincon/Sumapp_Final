@@ -301,7 +301,7 @@ namespace Networking.UI
         private void Update()
         {
             var runner = Networking.Services.FusionNetworkService.LocalRunner;
-
+            
             if (ShouldReplayInitPanelFade())
             {
                 ShowInitPanel();
@@ -424,9 +424,10 @@ namespace Networking.UI
             // Poll turn state while game lobby is active
             if (runner != null)
             {
-                bool gameplaySurfaceVisible = (_gameLobbyPanel != null && _gameLobbyPanel.activeSelf)
-                    || (_vuforiaPanel != null && _vuforiaPanel.activeSelf)
-                    || (_modelPanel != null && _modelPanel.activeSelf);
+                bool gameLobbyActive = _gameLobbyPanel != null && _gameLobbyPanel.activeSelf;
+                bool vuforiaActive = _vuforiaPanel != null && _vuforiaPanel.activeSelf;
+                bool modelActive = _modelPanel != null && _modelPanel.activeSelf;
+                bool gameplaySurfaceVisible = gameLobbyActive || vuforiaActive || modelActive;
 
                 if (gameplaySurfaceVisible)
                 {
@@ -445,7 +446,7 @@ namespace Networking.UI
                     _triviaUIController?.Refresh(runner, _turnNotificationPanel);
                 }
 
-                if (_gameLobbyPanel != null && _gameLobbyPanel.activeSelf)
+                if (gameLobbyActive)
                 {
                     RefreshRivalPlayersUI(runner);
                     RefreshBasinHealthImage(runner);
@@ -607,9 +608,11 @@ namespace Networking.UI
         private void RefreshProjectDecisionUI(NetworkRunner runner)
         {
             EnsureProjectFlowUIController();
+            bool vuforiaActive = _vuforiaPanel != null && _vuforiaPanel.activeSelf;
+            Debug.Log($"[LobbyCanvas] RefreshProjectDecisionUI. VuforiaActive={vuforiaActive}");
             _projectFlowUIController?.RefreshProjectDecisionUI(
                 runner,
-                _vuforiaPanel != null && _vuforiaPanel.activeSelf,
+                vuforiaActive,
                 CloseVuforiaPanel);
         }
 

@@ -102,35 +102,44 @@ namespace Networking.UI
             var gameManager = Networking.Managers.GameManager.Instance;
             var localData = gameManager?.GetPlayerData(runner.LocalPlayer, runner);
 
-            bool isAwaitingProjectScan = localData != null && localData.IsAwaitingProjectScan;
-            bool isAwaitingProjectDecision = localData != null && localData.IsAwaitingProjectDecision;
-            bool isAwaitingCardScan = localData != null && localData.IsAwaitingCardScan;
-            bool projectFlowActive = isAwaitingProjectScan || isAwaitingProjectDecision;
-            bool hasCardInfo = localData != null && !string.IsNullOrWhiteSpace(localData.PendingCardTitle.ToString());
+            if (localData == null) return;
+
+            bool isAwaitingProjectDecision = localData.IsAwaitingProjectDecision;
+            bool isAwaitingCardScan = localData.IsAwaitingCardScan;
+            string cardTitle = localData.PendingCardTitle.ToString();
+            bool hasCardInfo = !string.IsNullOrWhiteSpace(cardTitle);
 
             var lobbyCanvas = FindFirstObjectByType<LobbyCanvas>();
             bool isNotificationActive = (lobbyCanvas != null && lobbyCanvas.IsProcessingNotification);
 
-            IsProjectFlowVisible = projectFlowActive || isAwaitingCardScan || (hasCardInfo && !_isCardInfoManuallyHidden);
-
-            if (isAwaitingProjectDecision && isVuforiaOpen && !isNotificationActive
-                && _projectDecisionPanel != null && !_projectDecisionPanel.activeSelf)
+            // Reset manual hide when starting a new scan process
+            if (isAwaitingCardScan)
             {
-                _projectDecisionPanel.SetActive(true);
+                _isCardInfoManuallyHidden = false;
             }
 
-            bool showCardInfo = false;
-            if (isVuforiaOpen && hasCardInfo && !isAwaitingProjectDecision && !isAwaitingCardScan)
+            // The flow is visible if we are awaiting a scan, a decision, or showing card results
+            IsProjectFlowVisible = isAwaitingCardScan || isAwaitingProjectDecision || (hasCardInfo && !_isCardInfoManuallyHidden);
+
+            // Project Decision Panel logic (requires Vuforia to be open to see the 3D context)
+            if (isAwaitingProjectDecision && isVuforiaOpen && !isNotificationActive)
             {
-                string title = localData.PendingCardTitle.ToString();
-                if (!string.Equals(_lastShownCardTitle, title, System.StringComparison.Ordinal))
+                if (_projectDecisionPanel != null && !_projectDecisionPanel.activeSelf)
                 {
-                    _lastShownCardTitle = title;
-                    _isCardInfoManuallyHidden = false;
+                    _projectDecisionPanel.SetActive(true);
                 }
-
-                showCardInfo = !_isCardInfoManuallyHidden;
             }
+            else
+            {
+                if (_projectDecisionPanel != null && _projectDecisionPanel.activeSelf)
+                {
+                    _projectDecisionPanel.SetActive(false);
+                }
+            }
+
+            // Card Info Panel logic: Show if we have data and user hasn't clicked 'Return'
+            bool showCardInfo = hasCardInfo && !isAwaitingCardScan && !_isCardInfoManuallyHidden;
+
             if (_cardInfoPanel != null)
             {
                 _cardInfoPanel.SetActive(showCardInfo);
@@ -138,25 +147,14 @@ namespace Networking.UI
 
             if (showCardInfo)
             {
-                if (_cardInfoTitleText != null)
-                {
-                    _cardInfoTitleText.text = localData.PendingCardTitle.ToString();
-                }
-
-                if (_cardInfoLoreText != null)
-                {
-                    _cardInfoLoreText.text = localData.PendingCardLore.ToString();
-                }
-
-                if (_cardInfoEffectText != null)
-                {
-                    _cardInfoEffectText.text = localData.PendingCardEffect.ToString();
-                }
+                if (_cardInfoTitleText != null) _cardInfoTitleText.text = cardTitle;
+                if (_cardInfoLoreText != null) _cardInfoLoreText.text = localData.PendingCardLore.ToString();
+                if (_cardInfoEffectText != null) _cardInfoEffectText.text = localData.PendingCardEffect.ToString();
             }
 
             if (!isAwaitingProjectDecision)
             {
-                if (_projectDecisionPanel != null)
+                if (_projectDecisionPanel != null && _projectDecisionPanel.activeSelf)
                 {
                     _projectDecisionPanel.SetActive(false);
                 }

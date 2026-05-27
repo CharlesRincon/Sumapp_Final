@@ -611,7 +611,6 @@ data.IsPendingTeleportTileResolution = false;
                     data.HasRolledThisTurn = false;
                     data.HasScannedARThisTurn = false;
                     ClearPendingProjectState(data);
-                    ClearPendingCardDisplay(data);
                 }
             }
 
@@ -780,7 +779,6 @@ data.IsPendingTeleportTileResolution = false;
         private bool BeginProjectTileFlow(Networking.Models.PlayerSessionData playerData)
         {
             ClearPendingProjectState(playerData);
-            ClearPendingCardDisplay(playerData);
 
             if (_projectDatabase == null)
             {

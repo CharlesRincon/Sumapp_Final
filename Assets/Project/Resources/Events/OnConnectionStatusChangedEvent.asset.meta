@@ -1,4 +1,5 @@
 fileFormatVersion: 2
+<<<<<<< HEAD
 guid: b14e7ac2134139f44951765665c3e0e8
 NativeFormatImporter:
   externalObjects: {}
@@ -6,3 +7,12 @@ NativeFormatImporter:
   userData: 
   assetBundleName: 
   assetBundleVariant: 
+=======
+guid: 171d6dca784345899172ef7b1667fd0c
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 11400000
+  userData:
+  assetBundleName:
+  assetBundleVariant:
+>>>>>>> projects-logic

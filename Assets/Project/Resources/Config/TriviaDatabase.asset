@@ -1,0 +1,107 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0cf94fda9b453bb4596636cb7b70abe1, type: 3}
+  m_Name: TriviaDatabase
+  m_EditorClassIdentifier: Assembly-CSharp::Networking.Models.TriviaDatabase
+  _questions:
+  - QuestionText: "\xBFQu\xE9 porcentaje del agua de la Tierra es agua dulce disponible
+      para consumo humano?"
+    CorrectAnswer: Menos del 3%
+    WrongAnswer1: 50%
+    WrongAnswer2: 25%
+    WrongAnswer3: 10%
+  - QuestionText: "\xBFQu\xE9 es un p\xE1ramo?"
+    CorrectAnswer: "Un ecosistema de alta monta\xF1a que retiene y regula el agua"
+    WrongAnswer1: "Un tipo de r\xEDo subterr\xE1neo "
+    WrongAnswer2: "Una zona des\xE9rtica sin vegetaci\xF3n"
+    WrongAnswer3: Un lago de origen glaciar
+  - QuestionText: "\xBFCu\xE1l de estos r\xEDos es el m\xE1s largo e importante de
+      Colombia?"
+    CorrectAnswer: "R\xEDo Magdalena"
+    WrongAnswer1: "R\xEDo Cauca"
+    WrongAnswer2: "R\xEDo Orinoco"
+    WrongAnswer3: "R\xEDo Atrato"
+  - QuestionText: "\xBFQu\xE9 significa la palabra Sumak en lengua quechua?"
+    CorrectAnswer: Bueno / hermoso
+    WrongAnswer1: Agua
+    WrongAnswer2: "R\xEDo"
+    WrongAnswer3: Tierra
+  - QuestionText: "\xBFCu\xE1l de estas acciones contamina directamente una fuente
+      de agua?"
+    CorrectAnswer: "Arrojar residuos industriales sin tratamiento al r\xEDo"
+    WrongAnswer1: "Plantar \xE1rboles cerca del r\xEDo"
+    WrongAnswer2: Construir un humedal artificial
+    WrongAnswer3: Instalar sistemas de riego eficiente
+  - QuestionText: "\xBFQu\xE9 fen\xF3meno clim\xE1tico provoca sequ\xEDas severas
+      en Colombia por el calentamiento del oc\xE9ano Pac\xEDfico?"
+    CorrectAnswer: "Fen\xF3meno del Ni\xF1o"
+    WrongAnswer1: "Fen\xF3meno de la Ni\xF1a"
+    WrongAnswer2: "El Arco\xEDris de S\xEDa"
+    WrongAnswer3: "La corriente del Atl\xE1ntico"
+  - QuestionText: "\xBFQu\xE9 porcentaje de los p\xE1ramos del mundo se encuentran
+      en Colombia?"
+    CorrectAnswer: 50%
+    WrongAnswer1: 10%
+    WrongAnswer2: 25%
+    WrongAnswer3: 35%
+  - QuestionText: "\xBFQu\xE9 es la eutrofizaci\xF3n de un r\xEDo?"
+    CorrectAnswer: "La proliferaci\xF3n de algas por exceso de nutrientes que agotan
+      el ox\xEDgeno del agua"
+    WrongAnswer1: "El proceso de purificaci\xF3n natural del agua"
+    WrongAnswer2: "La recuperaci\xF3n de un ecosistema h\xEDdrico degradado"
+    WrongAnswer3: "El desbordamiento natural de un r\xEDo en \xE9poca de lluvias"
+  - QuestionText: "\xBFCu\xE1l de estos ecosistemas tiene mayor capacidad de retener
+      y regular el agua en Colombia?"
+    CorrectAnswer: "Los p\xE1ramos andinos"
+    WrongAnswer1: "Los manglares del Pac\xEDfico"
+    WrongAnswer2: Las sabanas de la Orinoquia
+    WrongAnswer3: Los bosques secos del Caribe
+  - QuestionText: "\xBFQu\xE9 es una cuenca h\xEDdrica?"
+    CorrectAnswer: "El territorio que drena sus aguas hacia un mismo r\xEDo o cuerpo
+      de agua"
+    WrongAnswer1: "Un dep\xF3sito artificial de agua potable"
+    WrongAnswer2: Una zona protegida donde no se puede construir
+    WrongAnswer3: "El conjunto de plantas de tratamiento de una regi\xF3n"
+  - QuestionText: "\xBFCu\xE1l es la principal causa de degradaci\xF3n de los p\xE1ramos
+      colombianos?"
+    CorrectAnswer: "La expansi\xF3n de la ganader\xEDa y la agricultura hacia zonas
+      de alta monta\xF1a"
+    WrongAnswer1: El turismo excesivo
+    WrongAnswer2: "La miner\xEDa de carb\xF3n"
+    WrongAnswer3: "La construcci\xF3n de represas hidroel\xE9ctricas"
+  - QuestionText: "\xBFQu\xE9 funci\xF3n cumplen los humedales dentro del ciclo h\xEDdrico?"
+    CorrectAnswer: Regulan caudales, retienen sedimentos y filtran contaminantes
+      naturalmente
+    WrongAnswer1: "Generan lluvia por evaporaci\xF3n directa"
+    WrongAnswer2: Filtran el agua salada y la convierten en dulce
+    WrongAnswer3: "Almacenan agua subterr\xE1nea en acu\xEDferos profundos"
+  - QuestionText: "El r\xEDo Bogot\xE1 es considerado uno de los m\xE1s contaminados
+      del mundo. \xBFCu\xE1l es su principal fuente de contaminaci\xF3n?"
+    CorrectAnswer: "Vertimientos de aguas residuales dom\xE9sticas e industriales
+      sin tratamiento"
+    WrongAnswer1: Residuos mineros de Cundinamarca
+    WrongAnswer2: Derrames de hidrocarburos en su nacimiento
+    WrongAnswer3: "Escorrent\xEDa agr\xEDcola con pesticidas"
+  - QuestionText: "\xBFQu\xE9 impacto tiene la desglaciaci\xF3n de los nevados colombianos
+      en el largo plazo?"
+    CorrectAnswer: "Reduce irreversiblemente la regulaci\xF3n h\xEDdrica de los r\xEDos
+      que nacen en ellos"
+    WrongAnswer1: "Aumenta permanentemente el caudal de los r\xEDos"
+    WrongAnswer2: "No tiene impacto significativo porque Colombia es un pa\xEDs tropical"
+    WrongAnswer3: Mejora la calidad del agua por el deshielo de agua pura
+  - QuestionText: "\xBFQu\xE9 es el ordenamiento territorial en relaci\xF3n con el
+      agua?"
+    CorrectAnswer: "La planificaci\xF3n del uso del suelo para proteger las zonas
+      donde nacen y fluyen los r\xEDos"
+    WrongAnswer1: "La construcci\xF3n de acueductos en zonas rurales"
+    WrongAnswer2: "La clasificaci\xF3n de r\xEDos seg\xFAn su tama\xF1o y caudal"
+    WrongAnswer3: "El sistema de distribuci\xF3n de agua potable en ciudades"

@@ -1,0 +1,38 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 644751563e081514390e7a0dc6effb03, type: 3}
+  m_Name: Project_1
+  m_EditorClassIdentifier: Assembly-CSharp::Networking.Models.ProjectDefinition
+  _projectId: 1
+  _displayName: Planta de tratamiento de Agua Residual
+  _price: 10
+  _markerId: 
+  _description: "Ganas 2 de AGUA por ronda independientemente de la casilla en la
+    que caigas. Este proyecto no se ve afectado por eventos negativos que reduzcan
+    el agua obtenida. Cuando la cuenca est\xE9 por debajo del 30%, el agua pasiva
+    generada se duplica a 4 de AGUA por ronda. \xDAnicamente el clima Fen\xF3meno
+    del Ni\xF1o puede nulificar temporalmente su efecto pasivo."
+  _baseWaterPerRound: 2
+  _baseMoneyPerRound: 0
+  _zoneEffects: []
+  _passiveBehaviours: 7
+  _basinThresholdForBonus: 0.3
+  _climateEventMoneyBonus: 1
+  _contextualWaterBonusNormal: 1
+  _contextualWaterBonusEnhanced: 2
+  _contextualWaterPenalty: 1
+  _basinRecoveryNormalAmount: 3
+  _basinRecoveryEnhancedAmount: 5
+  _basinLossNormalAmount: 3
+  _basinLossDroughtAmount: 8
+  _endGameWaterBonus: 5
+  _endGameBasinThreshold: 0.5

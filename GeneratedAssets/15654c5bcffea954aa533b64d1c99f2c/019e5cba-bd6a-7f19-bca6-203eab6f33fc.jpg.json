@@ -1,0 +1,28 @@
+{
+    "asset": "15654c5bcffea954aa533b64d1c99f2c",
+    "fileName": "019e5cba-bd6a-7f19-bca6-203eab6f33fc.jpg",
+    "prompt": "flat illustration of an overflowing dam due to excessive rain, waterfall, blue sky, vibrant colors, cartoon style",
+    "negativePrompt": "",
+    "model": "game-ui-essentials-2",
+    "modelName": "Game UI Essentials 2.0",
+    "customSeed": -1,
+    "w3CTraceId": "",
+    "feedback": 0,
+    "refinementMode": "Generation",
+    "pixelateTargetSize": 0,
+    "pixelateKeepImageSize": false,
+    "pixelatePixelBlockSize": 0,
+    "pixelatePixelGridSize": 0,
+    "pixelateMode": 0,
+    "pixelateOutlineThickness": 0,
+    "doodles": {
+        "m_Items": []
+    },
+    "upscaleFactor": 0,
+    "dimensions": {
+        "width": 2048,
+        "height": 2048
+    },
+    "spriteSheet": false,
+    "duration": 0.0
+}

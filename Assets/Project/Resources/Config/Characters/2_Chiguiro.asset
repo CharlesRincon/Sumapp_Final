@@ -1,0 +1,28 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bd5be529a7d414945917970f3f3cd0c7, type: 3}
+  m_Name: 2_Chiguiro
+  m_EditorClassIdentifier: Assembly-CSharp::Networking.Models.CharacterConfig
+  <CharacterId>k__BackingField: 2
+  <CharacterName>k__BackingField: "Don g\xFCiro"
+  <Description>k__BackingField: Chiguiro
+  <CharacterSprite>k__BackingField: {fileID: 21300000, guid: 68be604addee3e348aef4fa36fb7b559, type: 3}
+  <TurnImage>k__BackingField: {fileID: 21300000, guid: 1e3f5ae15c21ab84f8f06cc6243acab4, type: 3}
+  <CharacterColor>k__BackingField: {r: 0.5764706, g: 0.29411766, b: 0.59607846, a: 1}
+  <CharacterPrefab>k__BackingField:
+    RawGuidValue: 00000000000000000000000000000000
+  <Stats>k__BackingField:
+    Health: 0
+    AttackPower: 0
+    Defense: 0
+    AttackSpeed: 0
+    MovementSpeed: 0

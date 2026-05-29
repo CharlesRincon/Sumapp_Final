@@ -1,0 +1,36 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 644751563e081514390e7a0dc6effb03, type: 3}
+  m_Name: Project_8
+  m_EditorClassIdentifier: Assembly-CSharp::Networking.Models.ProjectDefinition
+  _projectId: 8
+  _displayName: "Planta de energ\xEDa hidroel\xE9ctrica"
+  _price: 9
+  _markerId: 
+  _description: "Ganas 4 de DINERO por ronda. Durante climas de lluvia, el dinero
+    sube a 6 de DINERO por ronda. Durante sequ\xEDas, el dinero baja a 2 de DINERO
+    por ronda. La cuenca pierde 2% por ronda por la alteraci\xF3n del caudal natural."
+  _baseWaterPerRound: 0
+  _baseMoneyPerRound: 4
+  _zoneEffects: []
+  _passiveBehaviours: 10240
+  _basinThresholdForBonus: 0.3
+  _climateEventMoneyBonus: 2
+  _contextualWaterBonusNormal: 1
+  _contextualWaterBonusEnhanced: 2
+  _contextualWaterPenalty: 1
+  _basinRecoveryNormalAmount: 3
+  _basinRecoveryEnhancedAmount: 5
+  _basinLossNormalAmount: 2
+  _basinLossDroughtAmount: 2
+  _endGameWaterBonus: 5
+  _endGameBasinThreshold: 0.5

@@ -16,9 +16,15 @@ MonoBehaviour:
     AppIdFusion: 4bdd93dc-b129-4123-b527-f34bb6b6552e
     AppIdChat: 
     AppIdVoice: 
+<<<<<<< HEAD
     AppVersion: 
     UseNameServer: 1
     FixedRegion: 
+=======
+    AppVersion: 1.0
+    UseNameServer: 1
+    FixedRegion: us
+>>>>>>> projects-logic
     Server: 
     Port: 0
     ProxyServer: 

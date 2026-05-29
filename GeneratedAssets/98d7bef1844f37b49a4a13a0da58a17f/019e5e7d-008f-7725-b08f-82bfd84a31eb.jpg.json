@@ -1,0 +1,28 @@
+{
+    "asset": "98d7bef1844f37b49a4a13a0da58a17f",
+    "fileName": "019e5e7d-008f-7725-b08f-82bfd84a31eb.jpg",
+    "prompt": "Icon for Insular region of Colombia, island, coral reefs, cartoon game style, vibrant colors, circular badge",
+    "negativePrompt": "",
+    "model": "game-ui-essentials-2",
+    "modelName": "Game UI Essentials 2.0",
+    "customSeed": -1,
+    "w3CTraceId": "",
+    "feedback": 0,
+    "refinementMode": "Generation",
+    "pixelateTargetSize": 0,
+    "pixelateKeepImageSize": false,
+    "pixelatePixelBlockSize": 0,
+    "pixelatePixelGridSize": 0,
+    "pixelateMode": 0,
+    "pixelateOutlineThickness": 0,
+    "doodles": {
+        "m_Items": []
+    },
+    "upscaleFactor": 0,
+    "dimensions": {
+        "width": 2048,
+        "height": 2048
+    },
+    "spriteSheet": false,
+    "duration": 0.0
+}

@@ -1,0 +1,28 @@
+{
+    "asset": "50cbc49efa4cf4a4a98aa43a19e9c4ec",
+    "fileName": "019e5cba-a28d-73b3-bfa9-7cd026459e0c.jpg",
+    "prompt": "flat illustration of parched earth with deep cracks, extreme heat, sun, vibrant colors, cartoon style",
+    "negativePrompt": "",
+    "model": "game-ui-essentials-2",
+    "modelName": "Game UI Essentials 2.0",
+    "customSeed": -1,
+    "w3CTraceId": "",
+    "feedback": 0,
+    "refinementMode": "Generation",
+    "pixelateTargetSize": 0,
+    "pixelateKeepImageSize": false,
+    "pixelatePixelBlockSize": 0,
+    "pixelatePixelGridSize": 0,
+    "pixelateMode": 0,
+    "pixelateOutlineThickness": 0,
+    "doodles": {
+        "m_Items": []
+    },
+    "upscaleFactor": 0,
+    "dimensions": {
+        "width": 2048,
+        "height": 2048
+    },
+    "spriteSheet": false,
+    "duration": 0.0
+}

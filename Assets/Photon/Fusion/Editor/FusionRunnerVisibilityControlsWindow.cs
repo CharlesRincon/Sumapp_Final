@@ -331,6 +331,10 @@ namespace Fusion.Editor {
       }
     }
 
+<<<<<<< HEAD
+=======
+    /*
+>>>>>>> projects-logic
     /// <summary>
     /// Draw buttons on toolbar.
     /// Automatically called by unity.
@@ -347,5 +351,9 @@ namespace Fusion.Editor {
         Application.OpenURL("https://doc.photonengine.com/fusion/current/manual/testing-and-tooling/multipeer");
       }
     }
+<<<<<<< HEAD
+=======
+    */
+>>>>>>> projects-logic
   }
 }

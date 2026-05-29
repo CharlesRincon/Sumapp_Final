@@ -1,0 +1,28 @@
+{
+    "asset": "659e7a1c14a787c43be3ecc5c5cf549a",
+    "fileName": "019e5cba-6b8c-7ace-896a-cc009ff9a6e7.jpg",
+    "prompt": "flat illustration of extreme drought in a Colombian valley, dry river, cracked earth, red sun, vibrant colors, cartoon style",
+    "negativePrompt": "",
+    "model": "game-ui-essentials-2",
+    "modelName": "Game UI Essentials 2.0",
+    "customSeed": -1,
+    "w3CTraceId": "",
+    "feedback": 0,
+    "refinementMode": "Generation",
+    "pixelateTargetSize": 0,
+    "pixelateKeepImageSize": false,
+    "pixelatePixelBlockSize": 0,
+    "pixelatePixelGridSize": 0,
+    "pixelateMode": 0,
+    "pixelateOutlineThickness": 0,
+    "doodles": {
+        "m_Items": []
+    },
+    "upscaleFactor": 0,
+    "dimensions": {
+        "width": 2048,
+        "height": 2048
+    },
+    "spriteSheet": false,
+    "duration": 0.0
+}

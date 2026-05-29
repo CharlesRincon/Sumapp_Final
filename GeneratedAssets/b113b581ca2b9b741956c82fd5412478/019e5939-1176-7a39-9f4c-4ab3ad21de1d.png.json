@@ -1,0 +1,28 @@
+{
+    "asset": "b113b581ca2b9b741956c82fd5412478",
+    "fileName": "019e5939-1176-7a39-9f4c-4ab3ad21de1d.png",
+    "prompt": "A single stylized 2D sun flare, bright yellow and orange, clean vector style, glow effect, game UI icon, white background (will be removed), simple shape.",
+    "negativePrompt": "",
+    "model": "gemini-3.1-flash",
+    "modelName": "Gemini 3.1 Nano Banana 2",
+    "customSeed": -1,
+    "w3CTraceId": "",
+    "feedback": 0,
+    "refinementMode": "Generation",
+    "pixelateTargetSize": 0,
+    "pixelateKeepImageSize": false,
+    "pixelatePixelBlockSize": 0,
+    "pixelatePixelGridSize": 0,
+    "pixelateMode": 0,
+    "pixelateOutlineThickness": 0,
+    "doodles": {
+        "m_Items": []
+    },
+    "upscaleFactor": 0,
+    "dimensions": {
+        "width": 1024,
+        "height": 1024
+    },
+    "spriteSheet": false,
+    "duration": 0.0
+}

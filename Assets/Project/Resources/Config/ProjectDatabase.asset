@@ -1,0 +1,23 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b964c2a340fb9c74988c484478463d82, type: 3}
+  m_Name: ProjectDatabase
+  m_EditorClassIdentifier: Assembly-CSharp::Networking.Models.ProjectDatabase
+  _projects:
+  - {fileID: 11400000, guid: e758ab9e500f3a444accddc94d70b367, type: 2}
+  - {fileID: 11400000, guid: 0020c73d837679d4b9abe1c081c49a62, type: 2}
+  - {fileID: 11400000, guid: 4385a3a4aba479b43b4028ad23be7f44, type: 2}
+  - {fileID: 11400000, guid: 0b6980310b7a2a545879a930621c3ce0, type: 2}
+  - {fileID: 11400000, guid: c1d39187fa2a16e4593413e63cfd138f, type: 2}
+  - {fileID: 11400000, guid: 293bdd2793354ee4ab9273c8a9c4f00e, type: 2}
+  - {fileID: 11400000, guid: 6385b19d42832644c811171e50826965, type: 2}
+  - {fileID: 11400000, guid: f35fafff5d04ec241a5366efbff0b12e, type: 2}

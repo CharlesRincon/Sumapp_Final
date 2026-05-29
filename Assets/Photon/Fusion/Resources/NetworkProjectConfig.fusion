@@ -31,8 +31,13 @@
         "EnableAdaptivePacketFragmentation": false
     },
     "Network": {
+<<<<<<< HEAD
         "ConnectionTimeout": 10.0,
         "ConnectionShutdownTime": 1.0,
+=======
+        "ConnectionTimeout": 120.0,
+        "ConnectionShutdownTime": 3.0,
+>>>>>>> projects-logic
         "ReliableDataTransferModes": 3
     },
     "HostMigration": {

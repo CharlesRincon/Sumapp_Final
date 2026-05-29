@@ -1,0 +1,28 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bd5be529a7d414945917970f3f3cd0c7, type: 3}
+  m_Name: 1_Oso
+  m_EditorClassIdentifier: Assembly-CSharp::Networking.Models.CharacterConfig
+  <CharacterId>k__BackingField: 1
+  <CharacterName>k__BackingField: Andy
+  <Description>k__BackingField: Oso
+  <CharacterSprite>k__BackingField: {fileID: 21300000, guid: 9706cb7934dd48140b32570a1783c133, type: 3}
+  <TurnImage>k__BackingField: {fileID: 21300000, guid: 6fdee5436a6db2c48a5e5ce9a0c244e1, type: 3}
+  <CharacterColor>k__BackingField: {r: 0.8117648, g: 0.36862746, b: 0.0627451, a: 1}
+  <CharacterPrefab>k__BackingField:
+    RawGuidValue: 00000000000000000000000000000000
+  <Stats>k__BackingField:
+    Health: 0
+    AttackPower: 0
+    Defense: 0
+    AttackSpeed: 0
+    MovementSpeed: 0

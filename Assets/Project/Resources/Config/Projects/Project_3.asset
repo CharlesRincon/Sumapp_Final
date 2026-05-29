@@ -1,0 +1,37 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 644751563e081514390e7a0dc6effb03, type: 3}
+  m_Name: Project_3
+  m_EditorClassIdentifier: Assembly-CSharp::Networking.Models.ProjectDefinition
+  _projectId: 3
+  _displayName: "Sistema de riego s\xFAper-eficiente"
+  _price: 4
+  _markerId: 
+  _description: "Cada vez que ganes agua por cualquier fuente, ganas 1 de AGUA adicional
+    encima del valor normal. Durante el Fen\xF3meno de la Ni\xF1a o al caer en zonas
+    h\xEDdricas, el bonus sube a 2 de AGUA adicionales. Sin embargo, las zonas catastr\xF3ficas
+    tambi\xE9n te quitan 1 de AGUA adicional mientras tengas este proyecto activo."
+  _baseWaterPerRound: 0
+  _baseMoneyPerRound: 0
+  _zoneEffects: []
+  _passiveBehaviours: 64
+  _basinThresholdForBonus: 0.3
+  _climateEventMoneyBonus: 1
+  _contextualWaterBonusNormal: 1
+  _contextualWaterBonusEnhanced: 2
+  _contextualWaterPenalty: 1
+  _basinRecoveryNormalAmount: 3
+  _basinRecoveryEnhancedAmount: 5
+  _basinLossNormalAmount: 3
+  _basinLossDroughtAmount: 8
+  _endGameWaterBonus: 5
+  _endGameBasinThreshold: 0.5
